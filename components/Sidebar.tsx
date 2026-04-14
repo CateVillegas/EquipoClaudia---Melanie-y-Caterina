@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   Lightbulb,
   Calendar,
-  Plus,
   Brain,
   Crown,
 } from 'lucide-react'
@@ -19,7 +18,7 @@ const NAV_ITEMS: { view: View; label: string; icon: React.ElementType }[] = [
 ]
 
 export default function Sidebar() {
-  const { activeView, setActiveView, items, openModal } = useStore()
+  const { activeView, setActiveView, items } = useStore()
 
   return (
     <aside className="flex w-[56px] flex-col items-center border-r border-[#e9e3da] bg-[#f4f1ec] py-4">
@@ -78,15 +77,6 @@ export default function Sidebar() {
 
       {/* Item count */}
       <p className="mb-2 text-[9px] font-semibold text-[#bfb9b2]">{items.length}</p>
-
-      {/* New item */}
-      <button
-        onClick={() => openModal()}
-        title="Nueva entrada"
-        className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#6d5fd3] text-white shadow-sm transition-all hover:bg-[#5e50c4] active:scale-95"
-      >
-        <Plus className="h-[18px] w-[18px]" />
-      </button>
     </aside>
   )
 }
