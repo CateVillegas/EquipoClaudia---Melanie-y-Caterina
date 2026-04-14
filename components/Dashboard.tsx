@@ -1,7 +1,11 @@
 'use client'
 
 import { useStore } from '@/lib/store'
-import { CATEGORY_CONFIG, Category } from '@/lib/types'
+import {
+  Category,
+  DEFAULT_CATEGORIES,
+  getCategoryConfig,
+} from '@/lib/types'
 import { cn, formatDate } from '@/lib/utils'
 import { Sparkles, TrendingUp, Calendar, Lightbulb, Rocket, Leaf, ArrowRight, User } from 'lucide-react'
 import { parseISO, isAfter, isBefore, addDays, getHours } from 'date-fns'
@@ -22,7 +26,7 @@ function getGreeting() {
 }
 
 export default function Dashboard() {
-  const { items, setActiveView, openModal } = useStore()
+  const { items, setActiveView, openModal, categories } = useStore()
 
   const now = new Date()
   const upcoming = items
@@ -37,9 +41,18 @@ export default function Dashboard() {
   const pinned = items.filter((i) => i.pinned).slice(0, 4)
   const recent = items.slice(0, 5)
 
-  const counts = (['idea', 'evento', 'proyecto', 'personal', 'persona'] as Category[]).map(
-    (cat) => ({ cat, count: items.filter((i) => i.category === cat).length })
-  )
+  const orderedCategories = [
+    ...DEFAULT_CATEGORIES.map((c) => c.key),
+    ...categories
+      .map((c) => c.key)
+      .filter((key) => !DEFAULT_CATEGORIES.some((base) => base.key === key))
+      .sort((a, b) => a.localeCompare(b)),
+  ]
+
+  const counts = orderedCategories.map((cat) => ({
+    cat,
+    count: items.filter((i) => i.category === cat).length,
+  }))
 
   return (
     <div className="min-h-screen p-6 animate-fade-in">
@@ -59,10 +72,10 @@ export default function Dashboard() {
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-5 gap-3 mb-8">
+      <div className="grid grid-cols-2 gap-3 mb-8 sm:grid-cols-3 lg:grid-cols-5">
         {counts.map(({ cat, count }) => {
-          const cfg = CATEGORY_CONFIG[cat]
-          const Icon = CATEGORY_ICONS[cat]
+          const cfg = getCategoryConfig(cat, categories)
+          const Icon = CATEGORY_ICONS[cat] ?? Lightbulb
           return (
             <button
               key={cat}
@@ -126,7 +139,7 @@ export default function Dashboard() {
           ) : (
             <div className="grid grid-cols-2 gap-3">
               {pinned.map((item) => {
-                const cfg = CATEGORY_CONFIG[item.category]
+                const cfg = getCategoryConfig(item.category, categories)
                 return (
                   <div key={item.id} className={cn('rounded-xl border p-3 transition-all', cfg.border, cfg.bg)}>
                     <span className={cn('text-[10px] font-semibold', cfg.text)}>{cfg.emoji} {cfg.label}</span>
@@ -155,7 +168,7 @@ export default function Dashboard() {
             </div>
           ) : (
             recent.map((item) => {
-              const cfg = CATEGORY_CONFIG[item.category]
+              const cfg = getCategoryConfig(item.category, categories)
               return (
                 <div key={item.id} className="flex items-center gap-3 px-4 py-3 hover:bg-[#faf9f6] transition-colors">
                   <span className={cn('h-2 w-2 shrink-0 rounded-full', cfg.dot)} />

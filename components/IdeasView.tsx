@@ -2,24 +2,39 @@
 
 import { useState } from 'react'
 import { useStore } from '@/lib/store'
-import { CATEGORY_CONFIG, Category } from '@/lib/types'
+import {
+  Category,
+  DEFAULT_CATEGORIES,
+  getCategoryDefinition,
+} from '@/lib/types'
 import { cn } from '@/lib/utils'
 import IdeaCard from './IdeaCard'
 import Header from './Header'
 import { Search } from 'lucide-react'
 
-const FILTERS: { value: Category | 'all'; label: string }[] = [
-  { value: 'all', label: 'Todas' },
-  { value: 'idea', label: '💡 Ideas' },
-  { value: 'proyecto', label: '🚀 Proyectos' },
-  { value: 'personal', label: '🌿 Personal' },
-  { value: 'persona', label: '👤 Personas' },
-]
-
 export default function IdeasView() {
-  const { items, openModal } = useStore()
+  const { items, openModal, categories } = useStore()
   const [filter, setFilter] = useState<Category | 'all'>('all')
   const [search, setSearch] = useState('')
+
+  const filterableCategories = [
+    ...DEFAULT_CATEGORIES.map((c) => c.key),
+    ...categories
+      .map((c) => c.key)
+      .filter((key) => !DEFAULT_CATEGORIES.some((base) => base.key === key))
+      .sort((a, b) => a.localeCompare(b)),
+  ].filter((key) => key !== 'evento')
+
+  const filters: Array<{ value: Category | 'all'; label: string }> = [
+    { value: 'all', label: 'Todas' },
+    ...filterableCategories.map((key) => {
+      const def = getCategoryDefinition(key, categories)
+      return {
+        value: key,
+        label: `${def.emoji} ${def.label}`,
+      }
+    }),
+  ]
 
   const filtered = items
     .filter((i) => {
@@ -61,7 +76,7 @@ export default function IdeasView() {
           />
         </div>
         <div className="flex items-center gap-1.5">
-          {FILTERS.map(({ value, label }) => (
+          {filters.map(({ value, label }) => (
             <button
               key={value}
               onClick={() => setFilter(value)}

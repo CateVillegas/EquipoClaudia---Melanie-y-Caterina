@@ -1,6 +1,14 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import { StoreState, Item, ChatMessage, Category } from './types'
+import {
+  StoreState,
+  Item,
+  ChatMessage,
+  Category,
+  CategoryDefinition,
+  DEFAULT_CATEGORIES,
+  toCategoryKey,
+} from './types'
 import { generateId } from './utils'
 
 const SAMPLE_ITEMS: Item[] = [
@@ -44,30 +52,80 @@ const SAMPLE_ITEMS: Item[] = [
   },
 ]
 
+function prettifyLabel(value: string): string {
+  const label = value.replace(/[_-]+/g, ' ').trim()
+  if (!label) return 'Nueva categoría'
+  return label.charAt(0).toUpperCase() + label.slice(1)
+}
+
+function ensureCategoryInList(
+  categories: CategoryDefinition[],
+  categoryKey: string,
+  label?: string,
+  emoji?: string
+): CategoryDefinition[] {
+  const key = toCategoryKey(categoryKey)
+  if (categories.some((c) => c.key === key)) {
+    return categories.map((c) =>
+      c.key === key
+        ? {
+            ...c,
+            ...(label ? { label } : {}),
+            ...(emoji ? { emoji } : {}),
+          }
+        : c
+    )
+  }
+
+  return [
+    ...categories,
+    {
+      key,
+      label: label ?? prettifyLabel(key),
+      emoji: emoji ?? '🧠',
+    },
+  ]
+}
+
+function normalizeItem(item: Item): Item {
+  return {
+    ...item,
+    category: toCategoryKey(item.category),
+  }
+}
+
 export const useStore = create<StoreState>()(
   persist(
     (set) => ({
       items: SAMPLE_ITEMS,
+      categories: DEFAULT_CATEGORIES,
       messages: [],
-      activeView: 'dashboard',
+      activeView: 'agente',
       selectedDate: null,
       modalOpen: false,
       modalCategory: null,
 
       addItem: (item) => {
         const now = new Date().toISOString()
+        const normalizedCategory = toCategoryKey(item.category)
         const newItem: Item = {
           ...item,
+          category: normalizedCategory,
           id: generateId(),
           createdAt: now,
           updatedAt: now,
         }
-        set((state) => ({ items: [newItem, ...state.items] }))
+        set((state) => ({
+          items: [newItem, ...state.items],
+          categories: ensureCategoryInList(state.categories, normalizedCategory),
+        }))
       },
 
       addItemDirect: (item) => {
+        const normalized = normalizeItem(item)
         set((state) => ({
-          items: [item, ...state.items.filter((i) => i.id !== item.id)],
+          items: [normalized, ...state.items.filter((i) => i.id !== normalized.id)],
+          categories: ensureCategoryInList(state.categories, normalized.category),
         }))
       },
 
@@ -89,6 +147,17 @@ export const useStore = create<StoreState>()(
         set((state) => ({
           items: state.items.map((item) =>
             item.id === id ? { ...item, pinned: !item.pinned } : item
+          ),
+        }))
+      },
+
+      upsertCategory: (category) => {
+        set((state) => ({
+          categories: ensureCategoryInList(
+            state.categories,
+            category.key,
+            category.label,
+            category.emoji
           ),
         }))
       },
@@ -130,16 +199,36 @@ export const useStore = create<StoreState>()(
     }),
     {
       name: 'cerebro-storage',
-      version: 2,
+      version: 3,
       migrate: (persisted: unknown) => {
-        const state = persisted as Partial<StoreState> & { items?: Array<{ category: string }> }
-        if (state.items) {
-          state.items = state.items.filter((i) => i.category !== 'libro') as Item[]
+        const state = persisted as Partial<StoreState> & {
+          items?: Array<Item & { category: string }>
+          categories?: CategoryDefinition[]
         }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if ((state as any).activeView === 'libro') {
-          state.activeView = 'dashboard'
+
+        const normalizedItems = (state.items ?? [])
+          .filter((i) => i.category !== 'libro')
+          .map((item) => normalizeItem(item as Item))
+
+        const categoriesFromItems = normalizedItems.reduce<CategoryDefinition[]>(
+          (acc, item) => ensureCategoryInList(acc, item.category),
+          []
+        )
+
+        state.items = normalizedItems
+        state.categories = DEFAULT_CATEGORIES.reduce<CategoryDefinition[]>(
+          (acc, def) => ensureCategoryInList(acc, def.key, def.label, def.emoji),
+          state.categories ?? categoriesFromItems
+        )
+
+        if ((state.activeView as string | undefined) === 'libro') {
+          state.activeView = 'agente'
         }
+
+        if (!state.activeView) {
+          state.activeView = 'agente'
+        }
+
         return state as StoreState
       },
       storage: createJSONStorage(() => {

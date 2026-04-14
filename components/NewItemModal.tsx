@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useStore } from '@/lib/store'
-import { CATEGORY_CONFIG, Category } from '@/lib/types'
+import {
+  Category,
+  DEFAULT_CATEGORIES,
+  getCategoryConfig,
+} from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { X, Plus } from 'lucide-react'
-
-const CATEGORIES: Category[] = ['idea', 'evento', 'proyecto', 'personal', 'persona']
 
 const RECURRENCE_OPTIONS = [
   { value: '', label: 'Sin repetición' },
@@ -16,7 +18,15 @@ const RECURRENCE_OPTIONS = [
 ]
 
 export default function NewItemModal() {
-  const { closeModal, modalCategory, addItem } = useStore()
+  const { closeModal, modalCategory, addItem, categories } = useStore()
+  const categoryOptions = [
+    ...DEFAULT_CATEGORIES.map((c) => c.key),
+    ...categories
+      .map((c) => c.key)
+      .filter((key) => !DEFAULT_CATEGORIES.some((base) => base.key === key))
+      .sort((a, b) => a.localeCompare(b)),
+  ]
+
   const [category, setCategory] = useState<Category>(modalCategory ?? 'idea')
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
@@ -100,8 +110,8 @@ export default function NewItemModal() {
           <div className="mb-4">
             <label className="mb-2 block text-xs font-medium text-[#8c8279]">Categoría</label>
             <div className="flex flex-wrap gap-2">
-              {CATEGORIES.map((cat) => {
-                const c = CATEGORY_CONFIG[cat]
+              {categoryOptions.map((cat) => {
+                const c = getCategoryConfig(cat, categories)
                 const isActive = category === cat
                 return (
                   <button

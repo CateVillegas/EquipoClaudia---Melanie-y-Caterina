@@ -250,7 +250,9 @@ export default function CalendarView() {
                 .sort(([a], [b]) => a.localeCompare(b))
                 .slice(0, 8)
                 .map(([date, events]) => {
-                  const uniqueEvents = [...new Map(events.map((e) => [e.id, e])).values()]
+                  const uniqueEvents = Array.from(
+                    new Map(events.map((e) => [e.id, e])).values()
+                  )
                   return (
                     <button
                       key={date}
