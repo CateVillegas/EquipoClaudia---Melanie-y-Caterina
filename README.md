@@ -1,6 +1,6 @@
 # Cerebro — Tu segunda mente
 
-Sistema personal de gestión de ideas, proyectos, escritura y eventos, potenciado por un agente IA basado en Claude Opus 4.6.
+Sistema personal de gestión de ideas, proyectos, personas y eventos, potenciado por un agente IA basado en Claude Opus 4.6 con tool use real.
 
 ---
 
@@ -8,19 +8,20 @@ Sistema personal de gestión de ideas, proyectos, escritura y eventos, potenciad
 
 | Sección | Descripción |
 |---|---|
+| **Agente IA** | Chat principal. Ejecuta acciones reales: crea, edita, borra y navega entre pantallas |
 | **Dashboard** | Vista general: estadísticas, entradas fijadas, próximos eventos y actividad reciente |
 | **Ideas & Proyectos** | Tarjetas filtrables por categoría con búsqueda, pin y etiquetas |
-| **Libro** | Escritura organizada por capítulos con contador de palabras |
-| **Calendario** | Vista mensual con puntos de evento, panel lateral de días seleccionados |
-| **Agente IA** | Chat con Claude Opus 4.6, streaming en tiempo real, contexto completo de tus notas |
+| **Calendario** | Vista mensual con eventos únicos y recurrentes, panel lateral por día |
 
 ### Categorías
 
 - 💡 **Idea** — Pensamientos y conceptos
-- 📖 **Libro** — Secciones de escritura agrupadas por capítulo
 - 📅 **Evento** — Fechas que aparecen en el calendario
 - 🚀 **Proyecto** — Iniciativas con seguimiento
 - 🌿 **Personal** — Notas de vida, hábitos, reflexiones
+- 👤 **Persona** — Todo lo vinculado a alguien: recordatorios, turnos, medicamentos, notas
+
+El agente puede proponer y crear categorías nuevas cuando el contenido no encaja en las existentes.
 
 ---
 
@@ -30,7 +31,7 @@ Sistema personal de gestión de ideas, proyectos, escritura y eventos, potenciad
 - **TypeScript**
 - **Tailwind CSS v3**
 - **Zustand v4** — Estado global con persistencia en localStorage
-- **@anthropic-ai/sdk** — Claude Opus 4.6 con adaptive thinking y streaming
+- **@anthropic-ai/sdk** — Claude Opus 4.6 con tool use y streaming SSE
 - **date-fns v3** — Utilidades de fechas y generación del calendario
 - **lucide-react** — Iconos
 
@@ -46,15 +47,14 @@ cerebro-app/
 │   ├── page.tsx             # Router de vistas (SSR-safe)
 │   └── api/
 │       └── chat/
-│           └── route.ts     # Endpoint de streaming con Anthropic SDK
+│           └── route.ts     # Agentic loop con Anthropic SDK + SSE
 ├── components/
-│   ├── Sidebar.tsx          # Navegación + contadores por categoría
-│   ├── Header.tsx           # Header reutilizable con acción opcional
+│   ├── App.tsx              # Layout split-screen: sidebar + chat + panel lateral
+│   ├── Sidebar.tsx          # Navegación con íconos
 │   ├── Dashboard.tsx        # Vista principal con métricas
-│   ├── IdeaCard.tsx         # Tarjeta de entrada (pin, delete, tags)
+│   ├── IdeaCard.tsx         # Tarjeta de entrada (pin, delete, tags, persona)
 │   ├── IdeasView.tsx        # Grid de ideas/proyectos/personal con filtros
-│   ├── LibroView.tsx        # Capítulos colapsables + estadísticas de escritura
-│   ├── CalendarView.tsx     # Calendario mensual custom + panel de eventos
+│   ├── CalendarView.tsx     # Calendario mensual custom + expansión de recurrentes
 │   ├── AgentChat.tsx        # Chat con streaming SSE + quick prompts
 │   └── NewItemModal.tsx     # Modal de creación con campos condicionales
 └── lib/
@@ -67,16 +67,20 @@ cerebro-app/
 
 ```
 Cliente (AgentChat)
-  → POST /api/chat  { messages, context }
-      → Anthropic SDK stream()
+  → POST /api/chat  { messages, items, categories, activeView }
+      → Agentic loop (hasta 6 iteraciones)
           model: claude-opus-4-6
-          thinking: { type: 'adaptive' }
-          system: prompt + contexto del usuario (prompt caching)
+          tools: create_item, update_item, delete_item,
+                 list_items, create_category, navigate_app
+          system: prompt base + contexto completo del usuario
   ← ReadableStream (text/event-stream)
-      → delta de texto acumulado en tiempo real
+      data: { type: "text", text: "..." }         → streaming de respuesta
+      data: { type: "tool_call", name, summary }  → acción en curso
+      data: { type: "mutation", action, item }    → CRUD aplicado al store
+      data: { type: "done" }
 ```
 
-El contexto que se envía al agente incluye automáticamente todas las entradas del usuario agrupadas por categoría.
+El agente ejecuta las herramientas server-side y emite eventos `mutation` que el cliente aplica directamente al store de Zustand — sin recarga, sin confirmación manual.
 
 ---
 
@@ -129,4 +133,110 @@ Sin la API key la app funciona completa excepto el Agente IA, que mostrará un m
 
 ## Persistencia de datos
 
-Los datos se guardan en `localStorage` del navegador bajo la clave `cerebro-storage`. No hay base de datos — todo es local y privado. Para migrar datos entre dispositivos, exporta el valor de esa clave desde las DevTools del navegador.
+Los datos se guardan en `localStorage` del navegador bajo la clave `cerebro-storage`. No hay base de datos — todo es local y privado. Para migrar datos entre dispositivos, exportá el valor de esa clave desde las DevTools del navegador.
+
+---
+
+## Casos de uso
+
+Estos son prompts reales para pegar en el chat del Agente. Muestran el rango de lo que Cerebro puede interpretar y ejecutar.
+
+### Personas y cuidados
+
+**Recordatorio de medicación recurrente**
+```
+Necesito recordar darle los medicamentos a mi abuelo Juan todos los viernes a las 10:00hs am durante 1 mes. El medicamento se llama Enalapril 10mg. Guardalo vinculado a Juan.
+```
+→ Crea un ítem en `persona` con `personName: "Juan"`, recurrencia semanal y fecha de fin a 1 mes. Pregunta si agregarlo al calendario.
+
+---
+
+**Turno médico puntual**
+```
+Hoy a las 18hs tengo que acordarme de sacarle turno al Médico Clínico a mi abuelo Juan. Guardalo con Juan para no olvidarlo.
+```
+→ Crea un ítem en `persona` con fecha de hoy, sin recurrencia. Pregunta si lo agrega al calendario.
+
+---
+
+**Guardar info de una persona**
+```
+Agregá a mi amiga Sofía. Tiene 32 años, es diseñadora UX y su cumpleaños es el 15 de agosto. Guardá también que le gusta el café con leche sin azúcar, por si algún día la invito.
+```
+→ Crea un ítem en `persona` con el perfil completo de Sofía. Pregunta si el cumpleaños va al calendario.
+
+---
+
+### Ideas y proyectos
+
+**Capturar una idea rápida**
+```
+Tuve una idea: una app que te recomienda qué cocinar según los ingredientes que tenés en la heladera, con modo "nevera vacía" para los domingos. Guardala como idea antes de que se me olvide.
+```
+→ Crea un ítem en `idea` con el concepto completo.
+
+---
+
+**Crear un proyecto con contexto**
+```
+Quiero arrancar el proyecto de rediseño de mi portfolio. Tengo que actualizar los casos de estudio, cambiar la paleta de colores y agregar una sección de blog. El objetivo es tenerlo listo antes de fin de mes para empezar a mandar CVs.
+```
+→ Crea un ítem en `proyecto` con el detalle y los objetivos.
+
+---
+
+**Priorizar lo pendiente**
+```
+Revisá todo lo que tengo guardado y decime qué debería hacer primero hoy.
+```
+→ Lista los ítems, analiza fechas y prioridades, y sugiere un orden de acción.
+
+---
+
+### Eventos y calendario
+
+**Agendar un evento**
+```
+El miércoles 23 tengo cena con el equipo a las 21hs en Lo de Marcos. Guardalo en el calendario.
+```
+→ Crea un ítem en `evento` con fecha y detalle.
+
+---
+
+**Evento recurrente**
+```
+Todos los lunes a las 8am tengo stand-up con el equipo. Es indefinido, no tiene fecha de fin.
+```
+→ Crea un ítem en `evento` con recurrencia semanal sin `endDate`.
+
+---
+
+### Organización y navegación
+
+**Abrir el dashboard**
+```
+Abrí el dashboard para ver un resumen de todo.
+```
+→ Ejecuta `navigate_app` y abre el panel del Dashboard.
+
+**Crear una categoría nueva**
+```
+Quiero una categoría para guardar recetas de cocina. Poné un emoji que tenga sentido.
+```
+→ Ejecuta `create_category` con key `recetas`, label y emoji 🍳.
+
+---
+
+**Modificar una entrada existente**
+```
+El proyecto de portfolio que guardé antes, cambiá la prioridad: ahora el foco es solo la sección blog, lo demás puede esperar.
+```
+→ Busca el ítem con `list_items`, ejecuta `update_item` con el contenido actualizado.
+
+---
+
+**Borrar algo**
+```
+Borrá el recordatorio del Enalapril de Juan, ya no lo necesita más.
+```
+→ Busca el ítem, ejecuta `delete_item`.
