@@ -9,6 +9,7 @@ import {
   Calendar,
   Plus,
   Brain,
+  Crown,
 } from 'lucide-react'
 
 const NAV_ITEMS: { view: View; label: string; icon: React.ElementType }[] = [
@@ -56,6 +57,20 @@ export default function Sidebar() {
 
       {/* Spacer */}
       <div className="flex-1" />
+
+      {/* Pro button */}
+      <button
+        onClick={() => toggleView('pro')}
+        title="Cerebro Pro"
+        className={cn(
+          'mb-2 flex h-10 w-10 items-center justify-center rounded-xl transition-all',
+          activeView === 'pro'
+            ? 'bg-gradient-to-br from-violet-500 to-amber-400 text-white shadow-sm ring-1 ring-violet-300'
+            : 'text-[#a09890] hover:bg-violet-50 hover:text-violet-500'
+        )}
+      >
+        <Crown className="h-[18px] w-[18px]" />
+      </button>
 
       {/* Item count */}
       <p className="mb-2 text-[9px] font-semibold text-[#bfb9b2]">{items.length}</p>
