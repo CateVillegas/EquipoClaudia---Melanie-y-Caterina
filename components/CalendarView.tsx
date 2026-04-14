@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useStore } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { Item } from '@/lib/types'
 import {
   cn,
@@ -13,14 +14,12 @@ import {
 } from '@/lib/utils'
 import { ChevronLeft, ChevronRight, Plus, X, Calendar, RefreshCw } from 'lucide-react'
 import { format, parseISO, addDays, addWeeks, addMonths, isAfter } from 'date-fns'
-import { es } from 'date-fns/locale'
-
-const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+import { es, enUS } from 'date-fns/locale'
 
 // Expande eventos recurrentes en un mapa fecha → items
 function buildEventsByDate(items: Item[]): Record<string, Item[]> {
   const result: Record<string, Item[]> = {}
-  const maxDate = addMonths(new Date(), 6) // expandir hasta 6 meses adelante
+  const maxDate = addMonths(new Date(), 6)
 
   for (const item of items) {
     if (!item.date) continue
@@ -32,7 +31,6 @@ function buildEventsByDate(items: Item[]): Record<string, Item[]> {
       continue
     }
 
-    // Evento recurrente
     const endLimit = item.recurrence.endDate
       ? parseISO(item.recurrence.endDate) < maxDate
         ? parseISO(item.recurrence.endDate)
@@ -58,14 +56,11 @@ function buildEventsByDate(items: Item[]): Record<string, Item[]> {
   return result
 }
 
-const RECURRENCE_LABEL: Record<string, string> = {
-  daily: 'Diario',
-  weekly: 'Semanal',
-  monthly: 'Mensual',
-}
-
 export default function CalendarView() {
-  const { items, openModal } = useStore()
+  const { items, openModal, language } = useStore()
+  const t = useT()
+  const locale = language === 'es' ? es : enUS
+
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
@@ -92,9 +87,9 @@ export default function CalendarView() {
       <div className="flex-1 p-6">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-[#1c1815] tracking-tight">Calendario</h1>
+            <h1 className="text-xl font-semibold text-[#1c1815] tracking-tight">{t.calendar.title}</h1>
             <p className="text-sm text-[#8c8279]">
-              {Object.keys(eventsByDate).length} días con eventos
+              {t.calendar.daysWithEvents(Object.keys(eventsByDate).length)}
             </p>
           </div>
           <button
@@ -102,7 +97,7 @@ export default function CalendarView() {
             className="flex items-center gap-2 rounded-lg bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 transition-colors"
           >
             <Plus className="h-4 w-4" />
-            Nuevo evento
+            {t.calendar.newEvent}
           </button>
         </div>
 
@@ -112,7 +107,7 @@ export default function CalendarView() {
             <ChevronLeft className="h-5 w-5" />
           </button>
           <h2 className="flex-1 text-center text-base font-semibold capitalize text-[#1c1815]">
-            {format(new Date(year, month), 'MMMM yyyy', { locale: es })}
+            {format(new Date(year, month), 'MMMM yyyy', { locale })}
           </h2>
           <button onClick={nextMonth} className="rounded-lg p-2 text-[#8c8279] hover:bg-[#f4f1ec] hover:text-[#1c1815] transition-colors">
             <ChevronRight className="h-5 w-5" />
@@ -121,7 +116,7 @@ export default function CalendarView() {
 
         {/* Weekday headers */}
         <div className="mb-2 grid grid-cols-7 gap-1">
-          {WEEKDAYS.map((day) => (
+          {t.calendar.weekdays.map((day) => (
             <div key={day} className="py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-[#bfb9b2]">
               {day}
             </div>
@@ -184,9 +179,9 @@ export default function CalendarView() {
           <div className="animate-slide-up">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <p className="text-xs text-[#a09890]">{format(selectedDay, 'EEEE', { locale: es })}</p>
+                <p className="text-xs text-[#a09890]">{format(selectedDay, 'EEEE', { locale })}</p>
                 <p className="text-lg font-semibold text-[#1c1815] capitalize">
-                  {format(selectedDay, "d 'de' MMMM", { locale: es })}
+                  {format(selectedDay, "d 'de' MMMM", { locale })}
                 </p>
               </div>
               <button onClick={() => setSelectedDay(null)} className="rounded-lg p-1.5 text-[#a09890] hover:bg-[#e9e3da] hover:text-[#6b6259]">
@@ -197,9 +192,9 @@ export default function CalendarView() {
             {selectedEvents.length === 0 ? (
               <div className="flex flex-col items-center py-8 text-center">
                 <Calendar className="mb-2 h-8 w-8 text-[#d4cfc9]" />
-                <p className="text-sm text-[#a09890]">Sin eventos este día</p>
+                <p className="text-sm text-[#a09890]">{t.calendar.noEventsToday}</p>
                 <button onClick={() => openModal('evento')} className="mt-3 text-xs text-emerald-700 hover:text-emerald-800">
-                  + Crear evento
+                  {t.calendar.createEvent}
                 </button>
               </div>
             ) : (
@@ -211,13 +206,13 @@ export default function CalendarView() {
                       {item.recurrence && (
                         <span className="shrink-0 flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-[10px] text-emerald-600">
                           <RefreshCw className="h-2.5 w-2.5" />
-                          {RECURRENCE_LABEL[item.recurrence.frequency]}
+                          {t.calendar.recurrence[item.recurrence.frequency]}
                         </span>
                       )}
                     </div>
                     {item.recurrence?.endDate && (
                       <p className="mt-0.5 text-[10px] text-[#a09890]">
-                        Hasta {formatDate(item.recurrence.endDate)}
+                        {t.calendar.until(formatDate(item.recurrence.endDate))}
                       </p>
                     )}
                     {item.content && (
@@ -237,14 +232,14 @@ export default function CalendarView() {
                   className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#d4cfc9] py-2 text-xs text-[#a09890] hover:border-emerald-300 hover:text-emerald-700 transition-colors"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  Agregar evento
+                  {t.calendar.addEvent}
                 </button>
               </div>
             )}
           </div>
         ) : (
           <div>
-            <p className="mb-4 text-sm font-semibold text-[#3d3630]">Próximos eventos</p>
+            <p className="mb-4 text-sm font-semibold text-[#3d3630]">{t.calendar.upcoming}</p>
             <div className="space-y-2">
               {Object.entries(eventsByDate)
                 .filter(([d]) => d >= toISODateString(now))
@@ -277,9 +272,9 @@ export default function CalendarView() {
                 })}
               {Object.keys(eventsByDate).filter((d) => d >= toISODateString(now)).length === 0 && (
                 <div className="py-8 text-center">
-                  <p className="text-sm text-[#a09890]">Sin eventos próximos</p>
+                  <p className="text-sm text-[#a09890]">{t.calendar.noUpcoming}</p>
                   <button onClick={() => openModal('evento')} className="mt-2 text-xs text-emerald-700 hover:text-emerald-800">
-                    + Crear evento
+                    {t.calendar.createEvent}
                   </button>
                 </div>
               )}

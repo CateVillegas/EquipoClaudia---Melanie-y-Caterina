@@ -3,17 +3,13 @@
 import { useState } from 'react'
 import { Item, getCategoryConfig } from '@/lib/types'
 import { useStore } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { cn, formatDate, truncate } from '@/lib/utils'
 import { Pin, Trash2, Tag, Calendar, RefreshCw, User } from 'lucide-react'
 
-const RECURRENCE_LABEL: Record<string, string> = {
-  daily: 'Diario',
-  weekly: 'Semanal',
-  monthly: 'Mensual',
-}
-
 export default function IdeaCard({ item }: { item: Item }) {
   const { deleteItem, togglePin, categories } = useStore()
+  const t = useT()
   const [showConfirm, setShowConfirm] = useState(false)
   const cfg = getCategoryConfig(item.category, categories)
 
@@ -38,17 +34,17 @@ export default function IdeaCard({ item }: { item: Item }) {
               'rounded-md p-1.5 transition-colors',
               item.pinned ? 'text-violet-500 hover:bg-violet-100' : 'text-[#a09890] hover:bg-[#f4f1ec] hover:text-[#6b6259]'
             )}
-            title={item.pinned ? 'Desfijar' : 'Fijar'}
+            title={item.pinned ? t.card.unpin : t.card.pin}
           >
             <Pin className="h-3.5 w-3.5" />
           </button>
           {showConfirm ? (
             <div className="flex items-center gap-1">
               <button onClick={() => deleteItem(item.id)} className="rounded-md bg-red-50 px-2 py-1 text-[10px] font-medium text-red-600 hover:bg-red-100">
-                Eliminar
+                {t.card.delete}
               </button>
               <button onClick={() => setShowConfirm(false)} className="rounded-md px-2 py-1 text-[10px] text-[#a09890] hover:text-[#6b6259]">
-                Cancelar
+                {t.card.cancel}
               </button>
             </div>
           ) : (
@@ -84,8 +80,8 @@ export default function IdeaCard({ item }: { item: Item }) {
         {item.recurrence && (
           <span className="flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] text-emerald-700">
             <RefreshCw className="h-2.5 w-2.5" />
-            {RECURRENCE_LABEL[item.recurrence.frequency]}
-            {item.recurrence.endDate && ` · hasta ${formatDate(item.recurrence.endDate)}`}
+            {t.card.recurrence[item.recurrence.frequency]}
+            {item.recurrence.endDate && t.card.until(formatDate(item.recurrence.endDate))}
           </span>
         )}
         {item.tags?.map((tag) => (

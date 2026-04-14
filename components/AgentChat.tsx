@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useStore } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { ChatMessage, Item, ToolAction } from '@/lib/types'
 import { cn, formatTime } from '@/lib/utils'
 import {
@@ -10,7 +11,6 @@ import {
   Trash2,
   User,
   Sparkles,
-  MessageCircle,
   Star,
   Compass,
   Zap,
@@ -19,41 +19,8 @@ import {
   LayoutDashboard,
 } from 'lucide-react'
 
-const QUICK_PROMPTS = [
-  {
-    icon: PlusCircle,
-    label: 'Crear categoría nueva',
-    text: 'Quiero crear una nueva categoría. Proponé un nombre y emoji que tenga sentido.',
-  },
-  {
-    icon: Star,
-    label: 'Guardar una idea',
-    text: 'Tengo una idea que quiero guardar. Te la cuento y vos organizala.',
-  },
-  {
-    icon: Compass,
-    label: '¿Qué tengo pendiente?',
-    text: 'Revisá todo lo que tengo guardado y decime qué debería priorizar hoy.',
-  },
-  {
-    icon: LayoutDashboard,
-    label: 'Mostrá el dashboard',
-    text: 'Abrí el dashboard para que vea un resumen de todo.',
-  },
-]
-
-const QUICK_PROMPTS_COMPACT = [
-  {
-    icon: PlusCircle,
-    label: 'Nueva categoría',
-    text: 'Quiero crear una nueva categoría. Proponé un nombre y emoji.',
-  },
-  {
-    icon: Star,
-    label: 'Guardar idea',
-    text: 'Tengo una idea que quiero guardar.',
-  },
-]
+const QUICK_PROMPT_ICONS = [PlusCircle, Star, Compass, LayoutDashboard]
+const QUICK_PROMPT_COMPACT_ICONS = [PlusCircle, Star]
 
 export default function AgentChat({ compact = false }: { compact?: boolean }) {
   const {
@@ -70,6 +37,7 @@ export default function AgentChat({ compact = false }: { compact?: boolean }) {
     upsertCategory,
     setActiveView,
   } = useStore()
+  const t = useT()
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -153,8 +121,8 @@ export default function AgentChat({ compact = false }: { compact?: boolean }) {
         }
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error desconocido'
-      updateLastMessage(`⚠️ No pude conectarme: ${msg}\n\nAsegurate de que ANTHROPIC_API_KEY esté configurada.`)
+      const msg = err instanceof Error ? err.message : t.chat.typing
+      updateLastMessage(`⚠️ ${msg}`)
     } finally {
       setLoading(false)
     }
@@ -173,7 +141,8 @@ export default function AgentChat({ compact = false }: { compact?: boolean }) {
     e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
   }
 
-  const prompts = compact ? QUICK_PROMPTS_COMPACT : QUICK_PROMPTS
+  const prompts = compact ? t.chat.quickPromptsCompact : t.chat.quickPrompts
+  const promptIcons = compact ? QUICK_PROMPT_COMPACT_ICONS : QUICK_PROMPT_ICONS
 
   return (
     <div className="flex h-full flex-col animate-fade-in">
@@ -184,9 +153,9 @@ export default function AgentChat({ compact = false }: { compact?: boolean }) {
             <Brain className="h-4.5 w-4.5 text-violet-600" />
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-[#1c1815]">Cerebro</h1>
+            <h1 className="text-sm font-semibold text-[#1c1815]">{t.chat.title}</h1>
             <p className="text-[10px] text-[#a09890]">
-              {items.length} {items.length === 1 ? 'entrada' : 'entradas'} · {categories.length} categorías
+              {t.chat.subtitle(items.length, categories.length)}
             </p>
           </div>
         </div>
@@ -196,7 +165,7 @@ export default function AgentChat({ compact = false }: { compact?: boolean }) {
             className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-[#a09890] hover:bg-[#f4f1ec] hover:text-[#6b6259] transition-colors"
           >
             <Trash2 className="h-3.5 w-3.5" />
-            {!compact && 'Limpiar'}
+            {!compact && t.chat.clear}
           </button>
         )}
       </div>
@@ -211,35 +180,38 @@ export default function AgentChat({ compact = false }: { compact?: boolean }) {
                   <Brain className="h-7 w-7 text-violet-500" />
                 </div>
                 <h2 className="mb-1.5 text-lg font-semibold text-[#1c1815]">
-                  Tu cerebro digital
+                  {t.chat.heading}
                 </h2>
                 <p className="mb-1.5 max-w-sm text-sm text-[#6b6259] leading-relaxed">
-                  Soy el centro de control de toda la app. Puedo crear categorías, guardar ideas, agendar eventos, organizar proyectos y navegar entre pantallas.
+                  {t.chat.description}
                 </p>
                 <p className="mb-6 max-w-sm text-xs text-[#a09890]">
-                  Pedime lo que necesites — yo me encargo.
+                  {t.chat.tagline}
                 </p>
               </>
             )}
             {compact && (
               <p className="mb-4 text-sm text-[#6b6259]">
-                Pedime lo que necesites
+                {t.chat.compactTagline}
               </p>
             )}
             <div className={cn(
               'grid gap-2 w-full',
               compact ? 'grid-cols-1 max-w-[280px]' : 'grid-cols-2 max-w-md'
             )}>
-              {prompts.map(({ icon: Icon, label, text }) => (
-                <button
-                  key={label}
-                  onClick={() => send(text)}
-                  className="flex items-center gap-2.5 rounded-xl border border-[#e9e3da] bg-white p-3 text-left hover:border-violet-200 hover:bg-violet-50 transition-all shadow-sm"
-                >
-                  <Icon className="h-4 w-4 shrink-0 text-violet-500" />
-                  <span className="text-xs text-[#6b6259]">{label}</span>
-                </button>
-              ))}
+              {prompts.map(({ label, text }, idx) => {
+                const Icon = promptIcons[idx] ?? Sparkles
+                return (
+                  <button
+                    key={label}
+                    onClick={() => send(text)}
+                    className="flex items-center gap-2.5 rounded-xl border border-[#e9e3da] bg-white p-3 text-left hover:border-violet-200 hover:bg-violet-50 transition-all shadow-sm"
+                  >
+                    <Icon className="h-4 w-4 shrink-0 text-violet-500" />
+                    <span className="text-xs text-[#6b6259]">{label}</span>
+                  </button>
+                )
+              })}
             </div>
           </div>
         ) : (
@@ -272,7 +244,7 @@ export default function AgentChat({ compact = false }: { compact?: boolean }) {
             value={input}
             onChange={handleInput}
             onKeyDown={handleKeyDown}
-            placeholder={compact ? 'Escribí acá…' : 'Decime qué necesitás… (Enter para enviar)'}
+            placeholder={compact ? t.chat.placeholderCompact : t.chat.placeholder}
             rows={1}
             disabled={loading}
             className="flex-1 resize-none bg-transparent text-sm text-[#1c1815] placeholder-[#bfb9b2] outline-none disabled:opacity-50"

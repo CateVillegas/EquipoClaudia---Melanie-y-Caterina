@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useStore } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import {
   Category,
   DEFAULT_CATEGORIES,
@@ -10,15 +11,10 @@ import {
 import { cn } from '@/lib/utils'
 import { X, Plus } from 'lucide-react'
 
-const RECURRENCE_OPTIONS = [
-  { value: '', label: 'Sin repetición' },
-  { value: 'daily', label: 'Diario' },
-  { value: 'weekly', label: 'Semanal' },
-  { value: 'monthly', label: 'Mensual' },
-]
-
 export default function NewItemModal() {
   const { closeModal, modalCategory, addItem, categories } = useStore()
+  const t = useT()
+
   const categoryOptions = [
     ...DEFAULT_CATEGORIES.map((c) => c.key),
     ...categories
@@ -70,8 +66,8 @@ export default function NewItemModal() {
   }
 
   const addTag = () => {
-    const t = tagInput.trim().toLowerCase()
-    if (t && !tags.includes(t)) setTags((prev) => [...prev, t])
+    const tag = tagInput.trim().toLowerCase()
+    if (tag && !tags.includes(tag)) setTags((prev) => [...prev, tag])
     setTagInput('')
   }
 
@@ -96,7 +92,7 @@ export default function NewItemModal() {
       <div className="relative w-full max-w-lg animate-slide-up rounded-2xl border border-[#e9e3da] bg-white shadow-xl overflow-y-auto max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#f4f1ec] px-5 py-4">
-          <h2 className="text-base font-semibold text-[#1c1815]">Nueva entrada</h2>
+          <h2 className="text-base font-semibold text-[#1c1815]">{t.modal.title}</h2>
           <button
             onClick={closeModal}
             className="rounded-lg p-1.5 text-[#a09890] hover:bg-[#f4f1ec] hover:text-[#6b6259] transition-colors"
@@ -108,7 +104,7 @@ export default function NewItemModal() {
         <form onSubmit={handleSubmit} className="p-5">
           {/* Category selector */}
           <div className="mb-4">
-            <label className="mb-2 block text-xs font-medium text-[#8c8279]">Categoría</label>
+            <label className="mb-2 block text-xs font-medium text-[#8c8279]">{t.modal.category}</label>
             <div className="flex flex-wrap gap-2">
               {categoryOptions.map((cat) => {
                 const c = getCategoryConfig(cat, categories)
@@ -136,13 +132,13 @@ export default function NewItemModal() {
           {category === 'persona' && (
             <div className="mb-4">
               <label className="mb-1.5 block text-xs font-medium text-[#8c8279]">
-                Nombre de la persona
+                {t.modal.personName}
               </label>
               <input
                 type="text"
                 value={personName}
                 onChange={(e) => setPersonName(e.target.value)}
-                placeholder="Ej: Abuelo, Mamá, Juan…"
+                placeholder={t.modal.personPlaceholder}
                 className="w-full rounded-lg border border-[#e9e3da] bg-[#faf9f6] px-3 py-2.5 text-sm text-[#1c1815] placeholder-[#bfb9b2] outline-none focus:border-sky-300 focus:ring-1 focus:ring-sky-100 transition-all"
               />
             </div>
@@ -150,19 +146,13 @@ export default function NewItemModal() {
 
           {/* Title */}
           <div className="mb-4">
-            <label className="mb-1.5 block text-xs font-medium text-[#8c8279]">Título *</label>
+            <label className="mb-1.5 block text-xs font-medium text-[#8c8279]">{t.modal.titleLabel}</label>
             <input
               ref={titleRef}
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder={
-                category === 'idea' ? 'Mi próxima gran idea…' :
-                category === 'evento' ? 'Nombre del evento…' :
-                category === 'proyecto' ? 'Nombre del proyecto…' :
-                category === 'persona' ? 'Ej: Medicamentos del abuelo…' :
-                'Algo que quiero recordar…'
-              }
+              placeholder={t.modal.placeholder(category)}
               className="w-full rounded-lg border border-[#e9e3da] bg-[#faf9f6] px-3 py-2.5 text-sm text-[#1c1815] placeholder-[#bfb9b2] outline-none focus:border-violet-300 focus:ring-1 focus:ring-violet-100 transition-all"
               required
             />
@@ -172,7 +162,7 @@ export default function NewItemModal() {
           {isEventLike && (
             <div className="mb-4">
               <label className="mb-1.5 block text-xs font-medium text-[#8c8279]">
-                {category === 'persona' ? 'Fecha de inicio' : 'Fecha del evento'}
+                {t.modal.dateLabel(category === 'persona')}
               </label>
               <input
                 type="date"
@@ -187,7 +177,7 @@ export default function NewItemModal() {
           {isEventLike && (
             <div className="mb-4">
               <label className="mb-1.5 block text-xs font-medium text-[#8c8279]">
-                Repetición
+                {t.modal.repetition}
               </label>
               <div className="flex gap-2">
                 <select
@@ -195,7 +185,7 @@ export default function NewItemModal() {
                   onChange={(e) => setRecurrenceFreq(e.target.value)}
                   className="flex-1 rounded-lg border border-[#e9e3da] bg-[#faf9f6] px-3 py-2.5 text-sm text-[#1c1815] outline-none focus:border-emerald-300 focus:ring-1 focus:ring-emerald-100 transition-all"
                 >
-                  {RECURRENCE_OPTIONS.map((opt) => (
+                  {t.modal.recurrenceOptions.map((opt) => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
@@ -204,14 +194,13 @@ export default function NewItemModal() {
                     type="date"
                     value={recurrenceEnd}
                     onChange={(e) => setRecurrenceEnd(e.target.value)}
-                    placeholder="Fecha de fin (opcional)"
                     className="flex-1 rounded-lg border border-[#e9e3da] bg-[#faf9f6] px-3 py-2.5 text-sm text-[#1c1815] outline-none focus:border-emerald-300 focus:ring-1 focus:ring-emerald-100 transition-all"
                   />
                 )}
               </div>
               {recurrenceFreq && (
                 <p className="mt-1 text-[10px] text-[#a09890]">
-                  {recurrenceEnd ? `Se repite hasta el ${recurrenceEnd}` : 'Se repite indefinidamente'}
+                  {recurrenceEnd ? t.modal.repeatsUntil(recurrenceEnd) : t.modal.repeatsIndefinitely}
                 </p>
               )}
             </div>
@@ -219,11 +208,11 @@ export default function NewItemModal() {
 
           {/* Content */}
           <div className="mb-4">
-            <label className="mb-1.5 block text-xs font-medium text-[#8c8279]">Contenido</label>
+            <label className="mb-1.5 block text-xs font-medium text-[#8c8279]">{t.modal.content}</label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="Desarrollá tu pensamiento aquí…"
+              placeholder={t.modal.contentPlaceholder}
               rows={3}
               className="w-full resize-none rounded-lg border border-[#e9e3da] bg-[#faf9f6] px-3 py-2.5 text-sm text-[#1c1815] placeholder-[#bfb9b2] outline-none focus:border-violet-300 focus:ring-1 focus:ring-violet-100 transition-all"
             />
@@ -231,7 +220,7 @@ export default function NewItemModal() {
 
           {/* Tags */}
           <div className="mb-5">
-            <label className="mb-1.5 block text-xs font-medium text-[#8c8279]">Etiquetas</label>
+            <label className="mb-1.5 block text-xs font-medium text-[#8c8279]">{t.modal.tags}</label>
             <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-[#e9e3da] bg-[#faf9f6] px-3 py-2 focus-within:border-violet-300 transition-all min-h-[42px]">
               {tags.map((tag) => (
                 <span key={tag} className="flex items-center gap-1 rounded-md bg-violet-50 px-2 py-0.5 text-xs text-violet-700">
@@ -247,11 +236,11 @@ export default function NewItemModal() {
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={handleTagKeyDown}
                 onBlur={addTag}
-                placeholder={tags.length === 0 ? 'Añadir etiqueta…' : ''}
+                placeholder={tags.length === 0 ? t.modal.addTag : ''}
                 className="flex-1 min-w-[80px] bg-transparent text-sm text-[#1c1815] placeholder-[#bfb9b2] outline-none"
               />
             </div>
-            <p className="mt-1 text-[10px] text-[#bfb9b2]">Presioná Enter para agregar</p>
+            <p className="mt-1 text-[10px] text-[#bfb9b2]">{t.modal.enterToAdd}</p>
           </div>
 
           {/* Actions */}
@@ -261,7 +250,7 @@ export default function NewItemModal() {
               onClick={closeModal}
               className="rounded-lg px-4 py-2 text-sm text-[#8c8279] hover:bg-[#f4f1ec] hover:text-[#3d3630] transition-colors"
             >
-              Cancelar
+              {t.modal.cancel}
             </button>
             <button
               type="submit"
@@ -274,7 +263,7 @@ export default function NewItemModal() {
               )}
             >
               <Plus className="h-4 w-4" />
-              Guardar
+              {t.modal.save}
             </button>
           </div>
         </form>

@@ -6,6 +6,7 @@ import {
   ChatMessage,
   Category,
   CategoryDefinition,
+  Language,
   DEFAULT_CATEGORIES,
   toCategoryKey,
 } from './types'
@@ -104,6 +105,8 @@ export const useStore = create<StoreState>()(
       selectedDate: null,
       modalOpen: false,
       modalCategory: null,
+      language: 'es' as Language,
+      setLanguage: (lang) => set({ language: lang }),
 
       addItem: (item) => {
         const now = new Date().toISOString()

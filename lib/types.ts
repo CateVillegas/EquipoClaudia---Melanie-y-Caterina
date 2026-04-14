@@ -1,5 +1,6 @@
 export type Category = string
 export type View = 'dashboard' | 'ideas' | 'calendario' | 'agente' | 'pro'
+export type Language = 'es' | 'en'
 
 export interface Recurrence {
   frequency: 'daily' | 'weekly' | 'monthly'
@@ -59,6 +60,8 @@ export interface StoreState {
   setSelectedDate: (date: string | null) => void
   openModal: (category?: Category) => void
   closeModal: () => void
+  language: Language
+  setLanguage: (lang: Language) => void
   addMessage: (message: Omit<ChatMessage, 'id' | 'timestamp'>) => string
   updateLastMessage: (content: string, thinking?: string, actions?: ToolAction[]) => void
   clearMessages: () => void

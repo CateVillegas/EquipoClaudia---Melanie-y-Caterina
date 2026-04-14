@@ -1,6 +1,7 @@
 'use client'
 
 import { useStore } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { getCategoryConfig } from '@/lib/types'
 import { cn, formatDate } from '@/lib/utils'
 import {
@@ -21,20 +22,22 @@ import {
   format,
   startOfDay,
 } from 'date-fns'
-import { es } from 'date-fns/locale'
-
-function getGreeting() {
-  const h = getHours(new Date())
-  if (h < 12) return 'Buenos días'
-  if (h < 19) return 'Buenas tardes'
-  return 'Buenas noches'
-}
+import { es, enUS } from 'date-fns/locale'
 
 export default function Dashboard() {
-  const { items, setActiveView, openModal, categories } = useStore()
+  const { items, setActiveView, openModal, categories, language } = useStore()
+  const t = useT()
+  const locale = language === 'es' ? es : enUS
 
   const now = new Date()
   const today = startOfDay(now)
+
+  function getGreeting() {
+    const h = getHours(now)
+    if (h < 12) return t.dashboard.greetingMorning
+    if (h < 19) return t.dashboard.greetingAfternoon
+    return t.dashboard.greetingEvening
+  }
 
   // This month count + growth
   const thisMonthCount = items.filter((i) => {
@@ -73,7 +76,7 @@ export default function Dashboard() {
     const day = subDays(today, 6 - i)
     const dayStr = format(day, 'yyyy-MM-dd')
     return {
-      label: format(day, 'EEE', { locale: es }),
+      label: format(day, 'EEE', { locale }),
       count: items.filter((item) => item.createdAt.slice(0, 10) === dayStr).length,
     }
   })
@@ -115,15 +118,15 @@ export default function Dashboard() {
           </h1>
         </div>
         <p className="text-[#8c8279] text-sm">
-          Tu resumen de Cerebro
+          {t.dashboard.subtitle}
         </p>
       </div>
 
-      {/* 3 stat cards — the only numbers you need */}
+      {/* 3 stat cards */}
       <div className="grid grid-cols-3 gap-3 mb-8">
         <div className="rounded-xl border border-[#e9e3da] bg-white p-5 text-center">
           <p className="text-3xl font-bold text-[#1c1815]">{items.length}</p>
-          <p className="text-xs text-[#8c8279] mt-1">entradas guardadas</p>
+          <p className="text-xs text-[#8c8279] mt-1">{t.dashboard.savedEntries}</p>
         </div>
         <div className="rounded-xl border border-[#e9e3da] bg-white p-5 text-center">
           <p className="text-3xl font-bold text-[#1c1815]">
@@ -137,13 +140,13 @@ export default function Dashboard() {
               </span>
             )}
           </p>
-          <p className="text-xs text-[#8c8279] mt-1">nuevas este mes</p>
+          <p className="text-xs text-[#8c8279] mt-1">{t.dashboard.newThisMonth}</p>
         </div>
         <div className="rounded-xl border border-[#e9e3da] bg-white p-5 text-center">
           {nextEvent ? (
             <>
               <p className="text-3xl font-bold text-[#1c1815]">
-                {daysUntilNext === 0 ? 'Hoy' : daysUntilNext === 1 ? '1d' : `${daysUntilNext}d`}
+                {daysUntilNext === 0 ? t.dashboard.today : daysUntilNext === 1 ? '1d' : `${daysUntilNext}d`}
               </p>
               <p className="text-xs text-[#8c8279] mt-1 truncate" title={nextEvent.title}>
                 {nextEvent.title}
@@ -152,16 +155,16 @@ export default function Dashboard() {
           ) : (
             <>
               <p className="text-3xl font-bold text-[#d4cfc9]">--</p>
-              <p className="text-xs text-[#8c8279] mt-1">sin eventos</p>
+              <p className="text-xs text-[#8c8279] mt-1">{t.dashboard.noEvents}</p>
             </>
           )}
         </div>
       </div>
 
-      {/* Category pills — quick glance at where your stuff lives */}
+      {/* Category pills */}
       {categoryBreakdown.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-sm font-semibold text-[#3d3630] mb-3">Tus categorías</h2>
+          <h2 className="text-sm font-semibold text-[#3d3630] mb-3">{t.dashboard.yourCategories}</h2>
           <div className="flex flex-wrap gap-2">
             {categoryBreakdown.map(({ key, count }) => {
               const cfg = getCategoryConfig(key, categories)
@@ -184,12 +187,12 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Favorites — ideas you can't forget */}
+      {/* Favorites */}
       {favorites.length > 0 && (
         <div className="mb-8">
           <div className="flex items-center gap-1.5 mb-3">
             <Star className="h-4 w-4 text-amber-400" />
-            <h2 className="text-sm font-semibold text-[#3d3630]">No pierdas de vista</h2>
+            <h2 className="text-sm font-semibold text-[#3d3630]">{t.dashboard.keepInMind}</h2>
           </div>
           <div className={cn(
             'grid gap-2.5',
@@ -221,7 +224,7 @@ export default function Dashboard() {
               onClick={() => setActiveView('ideas')}
               className="mt-2 text-xs text-violet-600 hover:text-violet-700 flex items-center gap-1"
             >
-              Ver las {favorites.length} favoritas <ArrowRight className="h-3 w-3" />
+              {t.dashboard.viewFavorites(favorites.length)} <ArrowRight className="h-3 w-3" />
             </button>
           )}
         </div>
@@ -232,17 +235,17 @@ export default function Dashboard() {
         {/* Upcoming events */}
         <div className="rounded-xl border border-[#e9e3da] bg-white p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-[#3d3630]">Próximos eventos</h2>
+            <h2 className="text-sm font-semibold text-[#3d3630]">{t.dashboard.upcomingEvents}</h2>
             <button onClick={() => setActiveView('calendario')} className="text-xs text-violet-600 hover:text-violet-700 flex items-center gap-1">
-              Ver <ArrowRight className="h-3 w-3" />
+              {t.dashboard.view} <ArrowRight className="h-3 w-3" />
             </button>
           </div>
           {upcoming.length === 0 ? (
             <div className="text-center py-4">
               <Calendar className="mx-auto mb-2 h-7 w-7 text-[#d4cfc9]" />
-              <p className="text-sm text-[#a09890]">Nada agendado</p>
+              <p className="text-sm text-[#a09890]">{t.dashboard.nothingScheduled}</p>
               <button onClick={() => openModal('evento')} className="mt-2 text-xs text-violet-600 hover:text-violet-700">
-                + Crear evento
+                {t.dashboard.createEvent}
               </button>
             </div>
           ) : (
@@ -256,13 +259,17 @@ export default function Dashboard() {
                         {format(parseISO(item.date!), 'd')}
                       </p>
                       <p className="text-[10px] uppercase text-emerald-600">
-                        {format(parseISO(item.date!), 'MMM', { locale: es })}
+                        {format(parseISO(item.date!), 'MMM', { locale })}
                       </p>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-[#1c1815] truncate">{item.title}</p>
                       <p className="text-[11px] text-emerald-600">
-                        {daysLeft === 0 ? 'Hoy' : daysLeft === 1 ? 'Mañana' : `En ${daysLeft} días`}
+                        {daysLeft === 0
+                          ? t.dashboard.today
+                          : daysLeft === 1
+                          ? t.dashboard.tomorrow
+                          : t.dashboard.inDays(daysLeft)}
                       </p>
                     </div>
                   </div>
@@ -274,7 +281,7 @@ export default function Dashboard() {
 
         {/* Weekly activity */}
         <div className="rounded-xl border border-[#e9e3da] bg-white p-5">
-          <h2 className="text-sm font-semibold text-[#3d3630] mb-4">Tu semana</h2>
+          <h2 className="text-sm font-semibold text-[#3d3630] mb-4">{t.dashboard.yourWeek}</h2>
           <div className="flex items-end gap-2.5 h-32">
             {last7Days.map((day, i) => {
               const isToday = i === 6
@@ -307,22 +314,27 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Recent activity — simple list */}
+      {/* Recent activity */}
       <div>
-        <h2 className="text-sm font-semibold text-[#3d3630] mb-3">Reciente</h2>
+        <h2 className="text-sm font-semibold text-[#3d3630] mb-3">{t.dashboard.recent}</h2>
         <div className="rounded-xl border border-[#e9e3da] bg-white divide-y divide-[#f4f1ec]">
           {recent.length === 0 ? (
             <div className="p-8 text-center">
-              <p className="text-sm text-[#a09890]">Todavía no guardaste nada</p>
+              <p className="text-sm text-[#a09890]">{t.dashboard.nothingYet}</p>
               <button onClick={() => setActiveView('agente')} className="mt-2 text-xs text-violet-600 hover:text-violet-700">
-                Empezar con el agente
+                {t.dashboard.startWithAgent}
               </button>
             </div>
           ) : (
             recent.map((item) => {
               const cfg = getCategoryConfig(item.category, categories)
               const daysAgo = differenceInDays(today, startOfDay(parseISO(item.updatedAt)))
-              const timeLabel = daysAgo === 0 ? 'Hoy' : daysAgo === 1 ? 'Ayer' : `Hace ${daysAgo}d`
+              const timeLabel =
+                daysAgo === 0
+                  ? t.dashboard.today
+                  : daysAgo === 1
+                  ? t.dashboard.yesterday
+                  : t.dashboard.daysAgo(daysAgo)
               return (
                 <div key={item.id} className="flex items-center gap-3 px-4 py-3.5">
                   <span className="text-base">{cfg.emoji}</span>

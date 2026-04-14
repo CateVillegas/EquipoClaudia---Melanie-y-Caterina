@@ -2,6 +2,7 @@
 
 import { useStore } from '@/lib/store'
 import { View } from '@/lib/types'
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard,
@@ -11,21 +12,22 @@ import {
   Crown,
 } from 'lucide-react'
 
-const NAV_ITEMS: { view: View; label: string; icon: React.ElementType }[] = [
-  { view: 'dashboard', label: 'Inicio', icon: LayoutDashboard },
-  { view: 'ideas', label: 'Ideas & Proyectos', icon: Lightbulb },
-  { view: 'calendario', label: 'Calendario', icon: Calendar },
-]
-
 export default function Sidebar() {
-  const { activeView, setActiveView, items } = useStore()
+  const { activeView, setActiveView, items, language, setLanguage } = useStore()
+  const t = useT()
+
+  const NAV_ITEMS: { view: View; label: string; icon: React.ElementType }[] = [
+    { view: 'dashboard', label: t.sidebar.dashboard, icon: LayoutDashboard },
+    { view: 'ideas', label: t.sidebar.ideas, icon: Lightbulb },
+    { view: 'calendario', label: t.sidebar.calendar, icon: Calendar },
+  ]
 
   return (
     <aside className="flex w-[56px] flex-col items-center border-r border-[#e9e3da] bg-[#f4f1ec] py-4">
       {/* Logo — tap to go back to agent chat */}
       <button
         onClick={() => setActiveView('agente')}
-        title="Cerebro — Agente IA"
+        title={t.sidebar.agentTitle}
         className={cn(
           'mb-5 flex h-9 w-9 items-center justify-center rounded-lg transition-all',
           activeView === 'agente'
@@ -64,7 +66,7 @@ export default function Sidebar() {
       {/* Pro button */}
       <button
         onClick={() => setActiveView('pro')}
-        title="Cerebro Pro"
+        title={t.sidebar.pro}
         className={cn(
           'mb-2 flex h-10 w-10 items-center justify-center rounded-xl transition-all',
           activeView === 'pro'
@@ -73,6 +75,15 @@ export default function Sidebar() {
         )}
       >
         <Crown className="h-[18px] w-[18px]" />
+      </button>
+
+      {/* Language toggle */}
+      <button
+        onClick={() => setLanguage(language === 'es' ? 'en' : 'es')}
+        title={t.sidebar.switchLangTitle}
+        className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl text-[9px] font-bold text-[#a09890] hover:bg-[#e9e3da] hover:text-[#6b6259] transition-all tracking-wider"
+      >
+        {t.sidebar.switchLang}
       </button>
 
       {/* Item count */}

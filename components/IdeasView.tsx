@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useStore } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import {
   Category,
   DEFAULT_CATEGORIES,
@@ -14,6 +15,7 @@ import { Search } from 'lucide-react'
 
 export default function IdeasView() {
   const { items, openModal, categories } = useStore()
+  const t = useT()
   const [filter, setFilter] = useState<Category | 'all'>('all')
   const [search, setSearch] = useState('')
 
@@ -26,7 +28,7 @@ export default function IdeasView() {
   ].filter((key) => key !== 'evento')
 
   const filters: Array<{ value: Category | 'all'; label: string }> = [
-    { value: 'all', label: 'Todas' },
+    { value: 'all', label: t.ideas.all },
     ...filterableCategories.map((key) => {
       const def = getCategoryDefinition(key, categories)
       return {
@@ -58,9 +60,9 @@ export default function IdeasView() {
   return (
     <div className="min-h-screen animate-fade-in">
       <Header
-        title="Ideas & Proyectos"
-        subtitle={`${filtered.length} ${filtered.length === 1 ? 'entrada' : 'entradas'}`}
-        action={{ label: 'Nueva entrada', onClick: () => openModal() }}
+        title={t.ideas.title}
+        subtitle={t.ideas.entries(filtered.length)}
+        action={{ label: t.ideas.newEntry, onClick: () => openModal() }}
       />
 
       {/* Filters + Search */}
@@ -69,7 +71,7 @@ export default function IdeasView() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#bfb9b2]" />
           <input
             type="text"
-            placeholder="Buscar…"
+            placeholder={t.ideas.search}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full rounded-lg border border-[#e9e3da] bg-white pl-9 pr-4 py-2 text-sm text-[#3d3630] placeholder-[#bfb9b2] outline-none focus:border-violet-300 focus:ring-1 focus:ring-violet-100 transition-all"
@@ -97,16 +99,16 @@ export default function IdeasView() {
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-[#e9e3da] bg-white py-16">
             <p className="text-4xl mb-3">🔍</p>
-            <p className="text-[#6b6259] font-medium">Sin resultados</p>
+            <p className="text-[#6b6259] font-medium">{t.ideas.noResults}</p>
             <p className="text-[#a09890] text-sm mt-1">
-              {search ? 'Probá con otra búsqueda' : 'Tu primera idea está a un clic'}
+              {search ? t.ideas.tryDifferentSearch : t.ideas.firstIdea}
             </p>
             {!search && (
               <button
                 onClick={() => openModal()}
                 className="mt-4 rounded-lg bg-violet-50 px-4 py-2 text-sm text-violet-700 ring-1 ring-violet-200 hover:bg-violet-100"
               >
-                Crear entrada
+                {t.ideas.createEntry}
               </button>
             )}
           </div>
@@ -115,7 +117,7 @@ export default function IdeasView() {
             {pinned.length > 0 && (
               <div className="mb-6">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-[#bfb9b2]">
-                  Fijadas
+                  {t.ideas.pinned}
                 </p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {pinned.map((item) => (
@@ -128,7 +130,7 @@ export default function IdeasView() {
               <div>
                 {pinned.length > 0 && (
                   <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-[#bfb9b2]">
-                    Todas
+                    {t.ideas.all}
                   </p>
                 )}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
