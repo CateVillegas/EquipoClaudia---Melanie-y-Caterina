@@ -12,11 +12,12 @@ module.exports = {
       },
       colors: {
         cerebro: {
-          bg: '#0a0a0f',
-          surface: '#111118',
-          border: '#1e1e2e',
-          accent: '#7c3aed',
-          'accent-light': '#a78bfa',
+          bg: '#faf9f6',
+          surface: '#ffffff',
+          sidebar: '#f4f1ec',
+          border: '#e9e3da',
+          accent: '#6d5fd3',
+          'accent-light': '#8b7fe8',
         },
       },
       animation: {

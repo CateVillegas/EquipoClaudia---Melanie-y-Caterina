@@ -13,6 +13,7 @@ const FILTERS: { value: Category | 'all'; label: string }[] = [
   { value: 'idea', label: '💡 Ideas' },
   { value: 'proyecto', label: '🚀 Proyectos' },
   { value: 'personal', label: '🌿 Personal' },
+  { value: 'persona', label: '👤 Personas' },
 ]
 
 export default function IdeasView() {
@@ -21,8 +22,11 @@ export default function IdeasView() {
   const [search, setSearch] = useState('')
 
   const filtered = items
-    .filter((i) => i.category !== 'libro' && i.category !== 'evento')
-    .filter((i) => filter === 'all' || i.category === filter)
+    .filter((i) => {
+      if (i.category === 'evento') return false
+      if (filter === 'all') return true
+      return i.category === filter
+    })
     .filter((i) => {
       if (!search.trim()) return true
       const q = search.toLowerCase()
@@ -40,20 +44,20 @@ export default function IdeasView() {
     <div className="min-h-screen animate-fade-in">
       <Header
         title="Ideas & Proyectos"
-        subtitle={`${filtered.length} entradas`}
+        subtitle={`${filtered.length} ${filtered.length === 1 ? 'entrada' : 'entradas'}`}
         action={{ label: 'Nueva entrada', onClick: () => openModal() }}
       />
 
       {/* Filters + Search */}
       <div className="px-6 pb-4 flex items-center gap-3">
         <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#bfb9b2]" />
           <input
             type="text"
             placeholder="Buscar…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-white/5 bg-[#111118] pl-9 pr-4 py-2 text-sm text-slate-300 placeholder-slate-600 outline-none focus:border-violet-500/40 focus:ring-1 focus:ring-violet-500/20 transition-all"
+            className="w-full rounded-lg border border-[#e9e3da] bg-white pl-9 pr-4 py-2 text-sm text-[#3d3630] placeholder-[#bfb9b2] outline-none focus:border-violet-300 focus:ring-1 focus:ring-violet-100 transition-all"
           />
         </div>
         <div className="flex items-center gap-1.5">
@@ -64,8 +68,8 @@ export default function IdeasView() {
               className={cn(
                 'rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
                 filter === value
-                  ? 'bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/30'
-                  : 'text-slate-500 hover:bg-white/5 hover:text-slate-300'
+                  ? 'bg-violet-50 text-violet-700 ring-1 ring-violet-200'
+                  : 'text-[#8c8279] hover:bg-[#f4f1ec] hover:text-[#3d3630]'
               )}
             >
               {label}
@@ -76,16 +80,16 @@ export default function IdeasView() {
 
       <div className="px-6 pb-6">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-white/5 bg-[#111118] py-16">
+          <div className="flex flex-col items-center justify-center rounded-xl border border-[#e9e3da] bg-white py-16">
             <p className="text-4xl mb-3">🔍</p>
-            <p className="text-slate-400 font-medium">Sin resultados</p>
-            <p className="text-slate-600 text-sm mt-1">
-              {search ? 'Prueba con otra búsqueda' : 'Crea tu primera entrada'}
+            <p className="text-[#6b6259] font-medium">Sin resultados</p>
+            <p className="text-[#a09890] text-sm mt-1">
+              {search ? 'Probá con otra búsqueda' : 'Tu primera idea está a un clic'}
             </p>
             {!search && (
               <button
                 onClick={() => openModal()}
-                className="mt-4 rounded-lg bg-violet-600/15 px-4 py-2 text-sm text-violet-400 hover:bg-violet-600/25"
+                className="mt-4 rounded-lg bg-violet-50 px-4 py-2 text-sm text-violet-700 ring-1 ring-violet-200 hover:bg-violet-100"
               >
                 Crear entrada
               </button>
@@ -95,7 +99,7 @@ export default function IdeasView() {
           <>
             {pinned.length > 0 && (
               <div className="mb-6">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-600">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-[#bfb9b2]">
                   Fijadas
                 </p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -108,7 +112,7 @@ export default function IdeasView() {
             {rest.length > 0 && (
               <div>
                 {pinned.length > 0 && (
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-600">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-[#bfb9b2]">
                     Todas
                   </p>
                 )}

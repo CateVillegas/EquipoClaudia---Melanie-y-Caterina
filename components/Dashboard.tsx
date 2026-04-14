@@ -3,24 +3,22 @@
 import { useStore } from '@/lib/store'
 import { CATEGORY_CONFIG, Category } from '@/lib/types'
 import { cn, formatDate } from '@/lib/utils'
-import {
-  Sparkles,
-  TrendingUp,
-  Calendar,
-  BookOpen,
-  Lightbulb,
-  Rocket,
-  Leaf,
-  ArrowRight,
-} from 'lucide-react'
-import { parseISO, isAfter, isBefore, addDays } from 'date-fns'
+import { Sparkles, TrendingUp, Calendar, Lightbulb, Rocket, Leaf, ArrowRight, User } from 'lucide-react'
+import { parseISO, isAfter, isBefore, addDays, getHours } from 'date-fns'
 
 const CATEGORY_ICONS: Record<Category, React.ElementType> = {
   idea: Lightbulb,
-  libro: BookOpen,
   evento: Calendar,
   proyecto: Rocket,
   personal: Leaf,
+  persona: User,
+}
+
+function getGreeting() {
+  const h = getHours(new Date())
+  if (h < 12) return 'Buenos días'
+  if (h < 19) return 'Buenas tardes'
+  return 'Buenas noches'
 }
 
 export default function Dashboard() {
@@ -39,7 +37,7 @@ export default function Dashboard() {
   const pinned = items.filter((i) => i.pinned).slice(0, 4)
   const recent = items.slice(0, 5)
 
-  const counts = (['idea', 'libro', 'evento', 'proyecto', 'personal'] as Category[]).map(
+  const counts = (['idea', 'evento', 'proyecto', 'personal', 'persona'] as Category[]).map(
     (cat) => ({ cat, count: items.filter((i) => i.category === cat).length })
   )
 
@@ -48,13 +46,15 @@ export default function Dashboard() {
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-1">
-          <Sparkles className="h-5 w-5 text-violet-400" />
-          <h1 className="text-2xl font-semibold text-white tracking-tight">
-            Buenos días
+          <Sparkles className="h-5 w-5 text-violet-500" />
+          <h1 className="text-2xl font-semibold text-[#1c1815] tracking-tight">
+            {getGreeting()} 👋
           </h1>
         </div>
-        <p className="text-slate-500 text-sm">
-          Tienes {items.length} entradas guardadas. ¿En qué vas a trabajar hoy?
+        <p className="text-[#8c8279] text-sm">
+          {items.length === 0
+            ? 'Tu cerebro está listo. ¿Qué querés guardar hoy?'
+            : `Tenés ${items.length} ${items.length === 1 ? 'entrada guardada' : 'entradas guardadas'}. ¿En qué vas a trabajar hoy?`}
         </p>
       </div>
 
@@ -67,26 +67,17 @@ export default function Dashboard() {
             <button
               key={cat}
               onClick={() => {
-                if (cat === 'libro') setActiveView('libro')
-                else if (cat === 'evento') setActiveView('calendario')
+                if (cat === 'evento') setActiveView('calendario')
                 else setActiveView('ideas')
               }}
-              className={cn(
-                'flex flex-col gap-3 rounded-xl border p-4 text-left transition-all hover:border-white/10 hover:scale-[1.02] active:scale-[0.99]',
-                'bg-[#111118] border-white/5'
-              )}
+              className="flex flex-col gap-3 rounded-xl border border-[#e9e3da] bg-white p-4 text-left transition-all hover:shadow-sm hover:scale-[1.02] active:scale-[0.99]"
             >
-              <div
-                className={cn(
-                  'flex h-9 w-9 items-center justify-center rounded-lg',
-                  cfg.bg
-                )}
-              >
+              <div className={cn('flex h-9 w-9 items-center justify-center rounded-lg', cfg.bg)}>
                 <Icon className={cn('h-4 w-4', cfg.text)} />
               </div>
               <div>
-                <p className="text-2xl font-bold text-white">{count}</p>
-                <p className="text-xs text-slate-500">{cfg.label}s</p>
+                <p className="text-2xl font-bold text-[#1c1815]">{count}</p>
+                <p className="text-xs text-[#8c8279]">{cfg.label}s</p>
               </div>
             </button>
           )
@@ -97,39 +88,25 @@ export default function Dashboard() {
         {/* Upcoming events */}
         <div className="col-span-1">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-slate-300">
-              Próximos eventos
-            </h2>
-            <button
-              onClick={() => setActiveView('calendario')}
-              className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300"
-            >
-              Ver todos
-              <ArrowRight className="h-3 w-3" />
+            <h2 className="text-sm font-semibold text-[#3d3630]">Próximos eventos</h2>
+            <button onClick={() => setActiveView('calendario')} className="flex items-center gap-1 text-xs text-violet-600 hover:text-violet-700">
+              Ver todos <ArrowRight className="h-3 w-3" />
             </button>
           </div>
           <div className="space-y-2">
             {upcoming.length === 0 ? (
-              <div className="rounded-xl border border-white/5 bg-[#111118] p-4 text-center">
-                <Calendar className="mx-auto mb-2 h-6 w-6 text-slate-600" />
-                <p className="text-xs text-slate-600">Sin eventos próximos</p>
-                <button
-                  onClick={() => openModal('evento')}
-                  className="mt-2 text-xs text-violet-400 hover:text-violet-300"
-                >
+              <div className="rounded-xl border border-[#e9e3da] bg-white p-4 text-center">
+                <Calendar className="mx-auto mb-2 h-6 w-6 text-[#d4cfc9]" />
+                <p className="text-xs text-[#a09890]">Sin eventos próximos</p>
+                <button onClick={() => openModal('evento')} className="mt-2 text-xs text-violet-600 hover:text-violet-700">
                   Crear evento
                 </button>
               </div>
             ) : (
               upcoming.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3"
-                >
-                  <p className="text-xs font-medium text-emerald-400">
-                    {item.date && formatDate(item.date)}
-                  </p>
-                  <p className="mt-0.5 text-sm text-slate-200">{item.title}</p>
+                <div key={item.id} className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                  <p className="text-xs font-medium text-emerald-700">{item.date && formatDate(item.date)}</p>
+                  <p className="mt-0.5 text-sm text-[#1c1815]">{item.title}</p>
                 </div>
               ))
             )}
@@ -139,39 +116,27 @@ export default function Dashboard() {
         {/* Pinned */}
         <div className="col-span-2">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-slate-300">
-              Fijadas
-            </h2>
-            <TrendingUp className="h-4 w-4 text-slate-600" />
+            <h2 className="text-sm font-semibold text-[#3d3630]">Fijadas</h2>
+            <TrendingUp className="h-4 w-4 text-[#d4cfc9]" />
           </div>
           {pinned.length === 0 ? (
-            <div className="rounded-xl border border-white/5 bg-[#111118] p-6 text-center">
-              <p className="text-xs text-slate-600">
-                Fija entradas importantes con el botón 📌
-              </p>
+            <div className="rounded-xl border border-[#e9e3da] bg-white p-6 text-center">
+              <p className="text-xs text-[#a09890]">Fijá las entradas importantes con el botón 📌</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
               {pinned.map((item) => {
                 const cfg = CATEGORY_CONFIG[item.category]
                 return (
-                  <div
-                    key={item.id}
-                    className={cn(
-                      'rounded-xl border p-3 transition-all',
-                      cfg.border,
-                      cfg.bg
+                  <div key={item.id} className={cn('rounded-xl border p-3 transition-all', cfg.border, cfg.bg)}>
+                    <span className={cn('text-[10px] font-semibold', cfg.text)}>{cfg.emoji} {cfg.label}</span>
+                    {item.personName && (
+                      <p className="mt-0.5 text-[10px] text-sky-600 flex items-center gap-1">
+                        <User className="h-2.5 w-2.5" /> {item.personName}
+                      </p>
                     )}
-                  >
-                    <span className={cn('text-[10px] font-semibold', cfg.text)}>
-                      {cfg.emoji} {cfg.label}
-                    </span>
-                    <p className="mt-1.5 text-sm font-medium text-slate-200 leading-snug">
-                      {item.title}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500 line-clamp-2">
-                      {item.content}
-                    </p>
+                    <p className="mt-1.5 text-sm font-medium text-[#1c1815] leading-snug">{item.title}</p>
+                    <p className="mt-1 text-xs text-[#8c8279] line-clamp-2">{item.content}</p>
                   </div>
                 )
               })}
@@ -182,30 +147,30 @@ export default function Dashboard() {
 
       {/* Recent activity */}
       <div className="mt-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-slate-300">Actividad reciente</h2>
-        </div>
-        <div className="rounded-xl border border-white/5 bg-[#111118] divide-y divide-white/5">
-          {recent.map((item) => {
-            const cfg = CATEGORY_CONFIG[item.category]
-            return (
-              <div
-                key={item.id}
-                className="flex items-center gap-3 px-4 py-3 hover:bg-white/2 transition-colors"
-              >
-                <span className={cn('h-2 w-2 shrink-0 rounded-full', cfg.dot)} />
-                <span className="flex-1 truncate text-sm text-slate-300">
-                  {item.title}
-                </span>
-                <span className={cn('shrink-0 text-[10px]', cfg.text)}>
-                  {cfg.label}
-                </span>
-                <span className="shrink-0 text-[10px] text-slate-600">
-                  {formatDate(item.updatedAt)}
-                </span>
-              </div>
-            )
-          })}
+        <h2 className="text-sm font-semibold text-[#3d3630] mb-3">Actividad reciente</h2>
+        <div className="rounded-xl border border-[#e9e3da] bg-white divide-y divide-[#f4f1ec]">
+          {recent.length === 0 ? (
+            <div className="p-6 text-center">
+              <p className="text-sm text-[#a09890]">Todavía no hay nada guardado — ¡empezá hoy!</p>
+            </div>
+          ) : (
+            recent.map((item) => {
+              const cfg = CATEGORY_CONFIG[item.category]
+              return (
+                <div key={item.id} className="flex items-center gap-3 px-4 py-3 hover:bg-[#faf9f6] transition-colors">
+                  <span className={cn('h-2 w-2 shrink-0 rounded-full', cfg.dot)} />
+                  <span className="flex-1 truncate text-sm text-[#3d3630]">{item.title}</span>
+                  {item.personName && (
+                    <span className="shrink-0 text-[10px] text-sky-600 flex items-center gap-0.5">
+                      <User className="h-2.5 w-2.5" />{item.personName}
+                    </span>
+                  )}
+                  <span className={cn('shrink-0 text-[10px] font-medium', cfg.text)}>{cfg.label}</span>
+                  <span className="shrink-0 text-[10px] text-[#a09890]">{formatDate(item.updatedAt)}</span>
+                </div>
+              )
+            })
+          )}
         </div>
       </div>
     </div>

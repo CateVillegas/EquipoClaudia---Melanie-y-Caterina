@@ -4,13 +4,13 @@
 @tailwind utilities;
 
 :root {
-  --bg: #0a0a0f;
-  --surface: #111118;
-  --border: #1e1e2e;
-  --text: #e2e8f0;
-  --muted: #64748b;
-  --accent: #7c3aed;
-  --accent-light: #a78bfa;
+  --bg: #faf9f6;
+  --surface: #ffffff;
+  --border: #e9e3da;
+  --text: #1c1815;
+  --muted: #8c8279;
+  --accent: #6d5fd3;
+  --accent-light: #8b7fe8;
 }
 
 * {
@@ -41,12 +41,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2a2a3e;
+  background: #d4cfc9;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3a3a5e;
+  background: #bfb9b2;
 }
 
 /* Animations */
@@ -84,26 +84,26 @@ body {
 
 /* Glass effect */
 .glass {
-  background: rgba(17, 17, 24, 0.8);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
 
 /* Gradient text */
 .gradient-text {
-  background: linear-gradient(135deg, #a78bfa, #818cf8, #38bdf8);
+  background: linear-gradient(135deg, #6d5fd3, #8b7fe8, #a78bfa);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 /* Custom prose for content */
-.prose-dark p {
+.prose-light p {
   margin-bottom: 0.75rem;
   line-height: 1.7;
-  color: #cbd5e1;
+  color: #3d3630;
 }
 
-.prose-dark p:last-child {
+.prose-light p:last-child {
   margin-bottom: 0;
 }

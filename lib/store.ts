@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import { StoreState, Item, ChatMessage, Category, View } from './types'
+import { StoreState, Item, ChatMessage, Category } from './types'
 import { generateId } from './utils'
 
 const SAMPLE_ITEMS: Item[] = [
@@ -15,24 +15,6 @@ const SAMPLE_ITEMS: Item[] = [
     pinned: true,
   },
   {
-    id: 'sample-2',
-    title: 'El Universo Interior',
-    content: 'Prólogo: La conciencia como fenómeno emergente de la complejidad. Este libro explora la relación entre mente, materia y significado.',
-    category: 'libro',
-    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    chapter: 'Prólogo',
-  },
-  {
-    id: 'sample-3',
-    title: 'Capítulo 1: El Origen',
-    content: 'Los primeros principios de la conciencia. ¿Qué diferencia la materia inerte de la materia que siente?',
-    category: 'libro',
-    createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-    chapter: 'Capítulo 1',
-  },
-  {
     id: 'sample-4',
     title: 'Conferencia de Innovación Tech',
     content: 'Asistir a la conferencia anual de tecnología. Preparar pitch de 5 minutos sobre el proyecto.',
@@ -44,7 +26,7 @@ const SAMPLE_ITEMS: Item[] = [
   {
     id: 'sample-5',
     title: 'Cerebro App v1.0',
-    content: 'Lanzar la primera versión de Cerebro con funcionalidades core: ideas, libro, eventos y agente IA.',
+    content: 'Lanzar la primera versión de Cerebro con funcionalidades core: ideas, eventos y agente IA.',
     category: 'proyecto',
     createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
@@ -64,7 +46,7 @@ const SAMPLE_ITEMS: Item[] = [
 
 export const useStore = create<StoreState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       items: SAMPLE_ITEMS,
       messages: [],
       activeView: 'dashboard',
@@ -81,6 +63,12 @@ export const useStore = create<StoreState>()(
           updatedAt: now,
         }
         set((state) => ({ items: [newItem, ...state.items] }))
+      },
+
+      addItemDirect: (item) => {
+        set((state) => ({
+          items: [item, ...state.items.filter((i) => i.id !== item.id)],
+        }))
       },
 
       updateItem: (id, updates) => {
@@ -123,12 +111,17 @@ export const useStore = create<StoreState>()(
         return id
       },
 
-      updateLastMessage: (content, thinking) => {
+      updateLastMessage: (content, thinking, actions) => {
         set((state) => {
           const msgs = [...state.messages]
           if (msgs.length === 0) return state
           const last = msgs[msgs.length - 1]
-          msgs[msgs.length - 1] = { ...last, content, ...(thinking !== undefined ? { thinking } : {}) }
+          msgs[msgs.length - 1] = {
+            ...last,
+            content,
+            ...(thinking !== undefined ? { thinking } : {}),
+            ...(actions !== undefined ? { actions } : {}),
+          }
           return { messages: msgs }
         })
       },
@@ -137,6 +130,18 @@ export const useStore = create<StoreState>()(
     }),
     {
       name: 'cerebro-storage',
+      version: 2,
+      migrate: (persisted: unknown) => {
+        const state = persisted as Partial<StoreState> & { items?: Array<{ category: string }> }
+        if (state.items) {
+          state.items = state.items.filter((i) => i.category !== 'libro') as Item[]
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if ((state as any).activeView === 'libro') {
+          state.activeView = 'dashboard'
+        }
+        return state as StoreState
+      },
       storage: createJSONStorage(() => {
         if (typeof window !== 'undefined') return localStorage
         return {

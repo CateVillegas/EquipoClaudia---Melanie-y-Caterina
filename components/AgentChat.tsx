@@ -2,44 +2,46 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useStore } from '@/lib/store'
-import { ChatMessage } from '@/lib/types'
+import { ChatMessage, Item, ToolAction } from '@/lib/types'
 import { cn, formatTime } from '@/lib/utils'
-import { Bot, Send, Trash2, User, Zap, Lightbulb, BookOpen, Rocket } from 'lucide-react'
+import {
+  Brain,
+  Send,
+  Trash2,
+  User,
+  Sparkles,
+  MessageCircle,
+  Star,
+  Compass,
+  Zap,
+  Check,
+} from 'lucide-react'
 
 const QUICK_PROMPTS = [
-  { icon: Lightbulb, label: 'Desarrolla mi última idea', text: 'Analiza y desarrolla mi última idea registrada. Dame perspectivas, posibles problemas y próximos pasos concretos.' },
-  { icon: BookOpen, label: 'Ayuda con el libro', text: 'Revisa el contenido de mi libro y sugiere cómo desarrollar el siguiente capítulo o mejorar la estructura narrativa.' },
-  { icon: Rocket, label: 'Estado de proyectos', text: 'Analiza mis proyectos activos y dame un resumen del progreso, posibles obstáculos y acciones prioritarias.' },
-  { icon: Zap, label: 'Conecta mis ideas', text: 'Mira todas mis entradas y encuentra conexiones interesantes entre ellas. ¿Qué patrones ves? ¿Qué oportunidades emergen?' },
+  {
+    icon: Sparkles,
+    label: '¿Qué está en mi cabeza?',
+    text: 'Mirá todo lo que tengo guardado y decime qué patrones ves, qué conexiones hay entre mis ideas y qué podría estar pasando por alto.',
+  },
+  {
+    icon: Star,
+    label: 'Desarrollá mi mejor idea',
+    text: 'Analizá mis ideas y elegí la que tenga más potencial. Desarrollala con pros, contras y próximos pasos concretos.',
+  },
+  {
+    icon: Compass,
+    label: '¿Qué tengo pendiente?',
+    text: 'Revisá mis proyectos y eventos. ¿Qué debería priorizar ahora? Dame un resumen claro de lo que está en movimiento.',
+  },
+  {
+    icon: MessageCircle,
+    label: 'Ayudame a pensar algo',
+    text: 'Mirá mis notas personales y contame qué observás sobre mis intereses y patrones. ¿Qué temas aparecen seguido?',
+  },
 ]
 
-function buildContext(items: ReturnType<typeof useStore>['items']): string {
-  if (items.length === 0) return 'El usuario no tiene entradas guardadas aún.'
-
-  const byCategory = items.reduce<Record<string, typeof items>>(
-    (acc, item) => {
-      if (!acc[item.category]) acc[item.category] = []
-      acc[item.category].push(item)
-      return acc
-    },
-    {}
-  )
-
-  const lines: string[] = []
-  for (const [cat, catItems] of Object.entries(byCategory)) {
-    lines.push(`\n## ${cat.toUpperCase()} (${catItems.length} entradas)`)
-    catItems.slice(0, 5).forEach((item) => {
-      lines.push(`- **${item.title}**: ${item.content.slice(0, 200)}${item.content.length > 200 ? '…' : ''}`)
-    })
-    if (catItems.length > 5) {
-      lines.push(`  (...y ${catItems.length - 5} más)`)
-    }
-  }
-  return lines.join('\n')
-}
-
 export default function AgentChat() {
-  const { messages, addMessage, updateLastMessage, clearMessages, items } = useStore()
+  const { messages, addMessage, updateLastMessage, clearMessages, items, addItemDirect, updateItem, deleteItem } = useStore()
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -58,29 +60,27 @@ export default function AgentChat() {
 
     addMessage({ role: 'user', content: userText })
 
-    const context = buildContext(items)
     const history = [
       ...messages.map((m) => ({ role: m.role, content: m.content })),
       { role: 'user' as const, content: userText },
     ]
 
     setLoading(true)
-    const assistantId = addMessage({ role: 'assistant', content: '' })
+    addMessage({ role: 'assistant', content: '' })
 
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history, context }),
+        body: JSON.stringify({ messages: history, items }),
       })
 
-      if (!res.ok || !res.body) {
-        throw new Error(`Error ${res.status}`)
-      }
+      if (!res.ok || !res.body) throw new Error(`Error ${res.status}`)
 
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let fullText = ''
+      const collectedActions: ToolAction[] = []
 
       while (true) {
         const { done, value } = await reader.read()
@@ -94,9 +94,26 @@ export default function AgentChat() {
           if (data === '[DONE]') break
           try {
             const parsed = JSON.parse(data)
+
             if (parsed.type === 'text') {
               fullText += parsed.text
-              updateLastMessage(fullText)
+              updateLastMessage(fullText, undefined, collectedActions.length ? collectedActions : undefined)
+            } else if (parsed.type === 'tool_call') {
+              // Visual feedback: show tool being called
+              collectedActions.push({ name: parsed.name, summary: parsed.summary })
+              updateLastMessage(fullText, undefined, [...collectedActions])
+            } else if (parsed.type === 'actions') {
+              // Final actions list
+              updateLastMessage(fullText, undefined, parsed.actions)
+            } else if (parsed.type === 'mutation') {
+              // Apply state change to store
+              if (parsed.action === 'create' && parsed.item) {
+                addItemDirect(parsed.item as Item)
+              } else if (parsed.action === 'update' && parsed.id && parsed.updates) {
+                updateItem(parsed.id, parsed.updates)
+              } else if (parsed.action === 'delete' && parsed.id) {
+                deleteItem(parsed.id)
+              }
             } else if (parsed.type === 'error') {
               fullText += `\n\n⚠️ Error: ${parsed.text}`
               updateLastMessage(fullText)
@@ -108,7 +125,7 @@ export default function AgentChat() {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error desconocido'
-      updateLastMessage(`⚠️ No se pudo conectar: ${msg}\n\nAsegúrate de que la variable ANTHROPIC_API_KEY esté configurada.`)
+      updateLastMessage(`⚠️ No pude conectarme: ${msg}\n\nAsegurate de que ANTHROPIC_API_KEY esté configurada.`)
     } finally {
       setLoading(false)
     }
@@ -130,22 +147,22 @@ export default function AgentChat() {
   return (
     <div className="flex h-full flex-col animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-white/5 px-6 py-5">
+      <div className="flex items-center justify-between border-b border-[#e9e3da] px-6 py-5 bg-white">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-600/20 ring-1 ring-violet-500/30">
-            <Bot className="h-5 w-5 text-violet-400" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 ring-1 ring-violet-200">
+            <Brain className="h-5 w-5 text-violet-600" />
           </div>
           <div>
-            <h1 className="text-base font-semibold text-white">Agente Cerebro</h1>
-            <p className="text-xs text-slate-500">
-              Powered by Claude Opus 4.6 · {items.length} entradas como contexto
+            <h1 className="text-base font-semibold text-[#1c1815]">Tu asistente personal</h1>
+            <p className="text-xs text-[#a09890]">
+              Puede leer y modificar tu memoria · {items.length} {items.length === 1 ? 'entrada' : 'entradas'}
             </p>
           </div>
         </div>
         {messages.length > 0 && (
           <button
             onClick={clearMessages}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-slate-500 hover:bg-white/5 hover:text-slate-300 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-[#a09890] hover:bg-[#f4f1ec] hover:text-[#6b6259] transition-colors"
           >
             <Trash2 className="h-3.5 w-3.5" />
             Limpiar
@@ -154,27 +171,30 @@ export default function AgentChat() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      <div className="flex-1 overflow-y-auto px-6 py-6 bg-[#faf9f6]">
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
-            <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-600/20 ring-1 ring-violet-500/20">
-              <Bot className="h-8 w-8 text-violet-400" />
+            <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-100 ring-1 ring-violet-200">
+              <Brain className="h-8 w-8 text-violet-500" />
             </div>
-            <h2 className="mb-2 text-lg font-semibold text-white">
-              ¿En qué puedo ayudarte?
+            <h2 className="mb-2 text-lg font-semibold text-[#1c1815]">
+              Hola, ¿en qué estás pensando?
             </h2>
-            <p className="mb-8 max-w-sm text-sm text-slate-500">
-              Tengo acceso a todas tus ideas, proyectos y notas. Pregúntame cualquier cosa.
+            <p className="mb-2 max-w-sm text-sm text-[#6b6259] leading-relaxed">
+              Soy tu segunda mente. Puedo recordar, organizar y actuar — si me pedís que guarde algo, lo guardo.
+            </p>
+            <p className="mb-8 max-w-sm text-sm text-[#a09890]">
+              Probá: <em className="text-[#6b6259]">"Recordame darle medicamentos al abuelo todos los días hasta el 30 de junio"</em>
             </p>
             <div className="grid grid-cols-2 gap-2.5 w-full max-w-md">
               {QUICK_PROMPTS.map(({ icon: Icon, label, text }) => (
                 <button
                   key={label}
                   onClick={() => send(text)}
-                  className="flex items-start gap-2.5 rounded-xl border border-white/5 bg-[#111118] p-3.5 text-left hover:border-violet-500/20 hover:bg-violet-500/5 transition-all"
+                  className="flex items-start gap-2.5 rounded-xl border border-[#e9e3da] bg-white p-3.5 text-left hover:border-violet-200 hover:bg-violet-50 transition-all shadow-sm"
                 >
-                  <Icon className="mt-0.5 h-4 w-4 shrink-0 text-violet-400" />
-                  <span className="text-xs text-slate-400">{label}</span>
+                  <Icon className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" />
+                  <span className="text-xs text-[#6b6259]">{label}</span>
                 </button>
               ))}
             </div>
@@ -186,10 +206,10 @@ export default function AgentChat() {
             ))}
             {loading && (
               <div className="flex items-start gap-3">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-600/20">
-                  <Bot className="h-3.5 w-3.5 text-violet-400" />
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-100 ring-1 ring-violet-200">
+                  <Brain className="h-3.5 w-3.5 text-violet-500" />
                 </div>
-                <div className="flex items-center gap-1.5 rounded-xl bg-[#111118] px-4 py-3">
+                <div className="flex items-center gap-1.5 rounded-2xl rounded-tl-sm bg-white border border-[#e9e3da] px-4 py-3 shadow-sm">
                   <span className="h-2 w-2 rounded-full bg-violet-400 animate-bounce [animation-delay:0ms]" />
                   <span className="h-2 w-2 rounded-full bg-violet-400 animate-bounce [animation-delay:150ms]" />
                   <span className="h-2 w-2 rounded-full bg-violet-400 animate-bounce [animation-delay:300ms]" />
@@ -202,17 +222,17 @@ export default function AgentChat() {
       </div>
 
       {/* Input */}
-      <div className="border-t border-white/5 p-4">
-        <div className="flex items-end gap-3 rounded-xl border border-white/5 bg-[#111118] px-4 py-3 focus-within:border-violet-500/30 focus-within:ring-1 focus-within:ring-violet-500/10 transition-all">
+      <div className="border-t border-[#e9e3da] p-4 bg-white">
+        <div className="flex items-end gap-3 rounded-xl border border-[#e9e3da] bg-[#faf9f6] px-4 py-3 focus-within:border-violet-300 focus-within:ring-1 focus-within:ring-violet-100 transition-all">
           <textarea
             ref={textareaRef}
             value={input}
             onChange={handleInput}
             onKeyDown={handleKeyDown}
-            placeholder="Escribe tu mensaje… (Enter para enviar, Shift+Enter para nueva línea)"
+            placeholder="Contame lo que tenés en mente… (Enter para enviar)"
             rows={1}
             disabled={loading}
-            className="flex-1 resize-none bg-transparent text-sm text-slate-200 placeholder-slate-600 outline-none disabled:opacity-50"
+            className="flex-1 resize-none bg-transparent text-sm text-[#1c1815] placeholder-[#bfb9b2] outline-none disabled:opacity-50"
             style={{ maxHeight: '200px' }}
           />
           <button
@@ -221,15 +241,15 @@ export default function AgentChat() {
             className={cn(
               'shrink-0 flex h-8 w-8 items-center justify-center rounded-lg transition-all',
               input.trim() && !loading
-                ? 'bg-violet-600 text-white hover:bg-violet-500'
-                : 'bg-white/5 text-slate-600 cursor-not-allowed'
+                ? 'bg-[#6d5fd3] text-white hover:bg-[#5e50c4] shadow-sm'
+                : 'bg-[#f4f1ec] text-[#bfb9b2] cursor-not-allowed'
             )}
           >
             <Send className="h-4 w-4" />
           </button>
         </div>
-        <p className="mt-2 text-center text-[10px] text-slate-700">
-          Claude puede cometer errores. Verifica información importante.
+        <p className="mt-2 text-center text-[10px] text-[#d4cfc9]">
+          Tu asistente puede guardar y modificar entradas directamente.
         </p>
       </div>
     </div>
@@ -244,38 +264,60 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       <div
         className={cn(
           'flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
-          isUser
-            ? 'bg-slate-700'
-            : 'bg-violet-600/20 ring-1 ring-violet-500/30'
+          isUser ? 'bg-[#e9e3da]' : 'bg-violet-100 ring-1 ring-violet-200'
         )}
       >
         {isUser ? (
-          <User className="h-3.5 w-3.5 text-slate-400" />
+          <User className="h-3.5 w-3.5 text-[#8c8279]" />
         ) : (
-          <Bot className="h-3.5 w-3.5 text-violet-400" />
+          <Brain className="h-3.5 w-3.5 text-violet-500" />
         )}
       </div>
-      <div
-        className={cn(
-          'max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed',
-          isUser
-            ? 'rounded-tr-sm bg-violet-600/20 text-slate-200'
-            : 'rounded-tl-sm bg-[#111118] text-slate-300'
-        )}
-      >
-        {message.content ? (
-          <div className="prose-dark whitespace-pre-wrap">
-            {message.content}
-            {!isUser && message.content.length < 20 && (
-              <span className="cursor-blink ml-0.5 inline-block h-4 w-0.5 bg-violet-400 align-middle" />
-            )}
+
+      <div className={cn('flex flex-col gap-1.5 max-w-[78%]', isUser && 'items-end')}>
+        {/* Tool actions badge */}
+        {!isUser && message.actions && message.actions.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {message.actions.map((action, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 rounded-full bg-violet-50 border border-violet-200 px-2.5 py-0.5 text-[11px] font-medium text-violet-700"
+              >
+                <Zap className="h-3 w-3" />
+                {action.summary}
+                <Check className="h-3 w-3 text-violet-500" />
+              </span>
+            ))}
           </div>
-        ) : (
-          <span className="text-slate-600 italic">Escribiendo…</span>
         )}
-        <p className="mt-1.5 text-[10px] text-slate-600">
-          {formatTime(message.timestamp)}
-        </p>
+
+        {/* Message bubble */}
+        {(message.content || isUser) && (
+          <div
+            className={cn(
+              'rounded-2xl px-4 py-3 text-sm leading-relaxed',
+              isUser
+                ? 'rounded-tr-sm bg-[#6d5fd3] text-white shadow-sm'
+                : 'rounded-tl-sm bg-white text-[#3d3630] border border-[#e9e3da] shadow-sm'
+            )}
+          >
+            {message.content ? (
+              <div className="prose-light whitespace-pre-wrap">
+                {message.content}
+                {!isUser && message.content.length < 20 && (
+                  <span className="cursor-blink ml-0.5 inline-block h-4 w-0.5 bg-violet-500 align-middle" />
+                )}
+              </div>
+            ) : (
+              <span className={cn('italic', isUser ? 'text-white/60' : 'text-[#bfb9b2]')}>
+                Escribiendo…
+              </span>
+            )}
+            <p className={cn('mt-1.5 text-[10px]', isUser ? 'text-white/50' : 'text-[#bfb9b2]')}>
+              {formatTime(message.timestamp)}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )
