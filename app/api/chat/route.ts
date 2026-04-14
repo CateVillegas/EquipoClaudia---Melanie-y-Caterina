@@ -19,8 +19,7 @@ const TOOLS: Anthropic.Tool[] = [
       properties: {
         category: {
           type: 'string',
-          enum: ['idea', 'evento', 'proyecto', 'personal', 'persona'],
-          description: 'Categoría de la entrada',
+          description: 'Clave de categoría (ej: idea, evento, proyecto, personal, salud, trabajo)',
         },
         title: { type: 'string', description: 'Título corto y descriptivo' },
         content: { type: 'string', description: 'Contenido detallado' },
@@ -46,6 +45,28 @@ const TOOLS: Anthropic.Tool[] = [
         pinned: { type: 'boolean', description: 'Si debe aparecer fijado' },
       },
       required: ['category', 'title', 'content'],
+    },
+  },
+  {
+    name: 'create_category',
+    description: 'Crea una categoría nueva en el sistema. Usala cuando el usuario pida agregar una categoría.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        key: {
+          type: 'string',
+          description: 'Clave única de la categoría (en minúsculas, sin espacios; ej: salud-personal)',
+        },
+        label: {
+          type: 'string',
+          description: 'Nombre visible de la categoría (ej: Salud personal)',
+        },
+        emoji: {
+          type: 'string',
+          description: 'Emoji para representar la categoría',
+        },
+      },
+      required: ['key', 'label'],
     },
   },
   {
@@ -90,9 +111,23 @@ const TOOLS: Anthropic.Tool[] = [
       properties: {
         category: {
           type: 'string',
-          enum: ['idea', 'evento', 'proyecto', 'personal', 'persona', 'all'],
         },
       },
+    },
+  },
+  {
+    name: 'navigate_app',
+    description: 'Navega a otra vista de la app. Usala cuando el usuario pida abrir o ir a una pantalla.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        view: {
+          type: 'string',
+          enum: ['dashboard', 'ideas', 'calendario', 'agente'],
+          description: 'Vista a abrir',
+        },
+      },
+      required: ['view'],
     },
   },
 ]
@@ -117,16 +152,73 @@ interface ItemLike {
   updatedAt?: string
 }
 
-function buildSystemContext(items: ItemLike[]): string {
-  if (items.length === 0) return 'El usuario no tiene entradas guardadas todavía.'
+interface CategoryLike {
+  key: string
+  label: string
+  emoji?: string
+}
 
+type AppView = 'dashboard' | 'ideas' | 'calendario' | 'agente'
+
+function normalizeCategoryKey(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '') || 'idea'
+}
+
+function prettifyCategoryLabel(value: string): string {
+  const label = value.replace(/[_-]+/g, ' ').trim()
+  if (!label) return 'Nueva categoría'
+  return label.charAt(0).toUpperCase() + label.slice(1)
+}
+
+function ensureCategory(
+  categories: CategoryLike[],
+  key: string,
+  label?: string,
+  emoji?: string
+): CategoryLike[] {
+  const normalizedKey = normalizeCategoryKey(key)
+  if (categories.some((c) => c.key === normalizedKey)) {
+    return categories.map((category) =>
+      category.key === normalizedKey
+        ? {
+            ...category,
+            ...(label ? { label } : {}),
+            ...(emoji ? { emoji } : {}),
+          }
+        : category
+    )
+  }
+
+  return [
+    ...categories,
+    {
+      key: normalizedKey,
+      label: label ?? prettifyCategoryLabel(normalizedKey),
+      emoji: emoji ?? '🧠',
+    },
+  ]
+}
+
+function buildSystemContext(items: ItemLike[], categories: CategoryLike[], activeView: AppView): string {
   const byCategory = items.reduce<Record<string, ItemLike[]>>((acc, item) => {
     if (!acc[item.category]) acc[item.category] = []
     acc[item.category].push(item)
     return acc
   }, {})
 
-  const lines: string[] = ['### Memoria del usuario (con IDs para tool use)\n']
+  const lines: string[] = [
+    '### Estado actual de la app',
+    `- Vista abierta: ${activeView}`,
+    '- Categorías disponibles:',
+    ...categories.map((c) => `  • ${c.key} (${c.label}${c.emoji ? ` ${c.emoji}` : ''})`),
+    '',
+    '### Memoria del usuario (con IDs para tool use)',
+    '',
+  ]
   for (const [cat, catItems] of Object.entries(byCategory)) {
     lines.push(`**${cat.toUpperCase()}** (${catItems.length})`)
     catItems.forEach((item) => {
@@ -139,6 +231,11 @@ function buildSystemContext(items: ItemLike[]): string {
       lines.push(`  • [ID: ${item.id}] ${item.title}${extrasStr}: ${item.content.slice(0, 150)}${item.content.length > 150 ? '…' : ''}`)
     })
   }
+
+  if (items.length === 0) {
+    lines.push('El usuario no tiene entradas guardadas todavía.')
+  }
+
   return lines.join('\n')
 }
 
@@ -146,12 +243,16 @@ function toolSummary(name: string, input: Record<string, unknown>): string {
   switch (name) {
     case 'create_item':
       return `Guardé "${input.title}" en ${input.category}`
+    case 'create_category':
+      return `Creé la categoría ${input.label}`
     case 'update_item':
       return `Actualicé la entrada ${input.id}`
     case 'delete_item':
       return `Eliminé la entrada ${input.id}`
     case 'list_items':
       return `Consulté ${input.category || 'todas'} las entradas`
+    case 'navigate_app':
+      return `Abrí la vista ${input.view}`
     default:
       return name
   }
@@ -159,34 +260,47 @@ function toolSummary(name: string, input: Record<string, unknown>): string {
 
 // ─── System prompt ─────────────────────────────────────────────────────────
 
-const SYSTEM_BASE = `Sos Cerebro, la segunda mente del usuario. Su asistente personal más íntimo — conocés sus ideas, proyectos, personas importantes y hábitos.
+const SYSTEM_BASE = `Sos Cerebro, el centro de control inteligente de toda la app del usuario. Sos su cerebro digital — la pantalla principal es ESTE CHAT, y desde acá controlás todo.
 
-Tu superpoder: **PODÉS ACTUAR**. No solo sugerís — usás herramientas para crear, modificar y eliminar entradas directamente en la memoria del usuario.
+**Tu rol:** Sos un agente real con poder total sobre la app. Podés:
+- Crear y gestionar **categorías** (create_category)
+- Crear, editar y eliminar **entradas** de cualquier tipo (create_item, update_item, delete_item)
+- **Navegar** entre pantallas — abrí el dashboard, ideas o calendario como panel lateral (navigate_app)
+- **Consultar** toda la memoria del usuario (list_items)
 
-**Regla principal:** Cuando el usuario te pida hacer algo ("agrega", "crea", "recordame", "borrá", "modificá", "quiero acordarme"), ejecutalo **inmediatamente** con la herramienta correcta, sin pedir confirmación excepto si hay ambigüedad genuina. Luego confirmás brevemente lo que hiciste.
+**Regla principal:** Cuando el usuario te pida hacer algo ("agrega", "crea", "recordame", "borrá", "modificá", "quiero acordarme", "hacé una categoría"), ejecutalo **inmediatamente** con la herramienta correcta. No pidas confirmación. Actuá y después confirmá brevemente qué hiciste.
 
-**Categoría "persona":**
-- Usala para guardar información sobre personas importantes (familiares, amigos, colegas)
-- Asociá recordatorios o eventos recurrentes a ellas
-- Ejemplo: "Medicamentos del abuelo" → categoria: evento, personName: "Abuelo", recurrence: { frequency: "daily", endDate: "2025-06-01" }
+**Categorías:**
+- Las categorías son la forma de organizar todo. Las default son: idea, evento, proyecto, personal, persona
+- Si el usuario menciona un tema que no encaja en las categorías existentes, PROPONELE crear una nueva
+- Al crear una categoría usá create_category con key (minúsculas, sin espacios), label (nombre visible) y emoji
+- Después de crear una categoría, podés crear entradas en ella directamente
+
+**Persona:**
+- Usá la categoría "persona" para guardar info sobre personas importantes
+- Asociá eventos recurrentes con personName
 
 **Recurrencia en eventos:**
 - frequency: "daily" / "weekly" / "monthly"
 - endDate: fecha de fin (YYYY-MM-DD), o sin especificar si es indefinido
-- Los eventos recurrentes aparecen automáticamente en el calendario
+
+**Navegación:**
+- Cuando el usuario pide ver algo visual (dashboard, calendario, ideas), usá navigate_app para abrir el panel lateral
+- Para volver al chat solo, navegá a "agente"
 
 **Principios:**
-- Ejecutá primero, después confirmá brevemente
-- Sé cálido, directo y conciso. Siempre en español
+- EJECUTÁ PRIMERO, confirmá después. Sé proactivo.
+- Sé cálido, directo y conciso. Siempre en español rioplatense
 - Conectá ideas entre sí cuando sea útil
 - Usá bullets y estructura cuando ayude a la claridad
-- Si falta algo crucial, preguntá solo lo mínimo indispensable`
+- Si falta algo crucial, preguntá solo lo mínimo indispensable
+- Cuando el usuario te cuenta algo, pensá: ¿debería guardarlo? ¿En qué categoría? Actuá sin esperar instrucciones explícitas si es claro`
 
 // ─── Route handler ─────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, items = [] } = await req.json()
+    const { messages, items = [], categories = [], activeView = 'agente' } = await req.json()
 
     if (!process.env.ANTHROPIC_API_KEY) {
       return new Response(
@@ -194,8 +308,6 @@ export async function POST(req: NextRequest) {
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       )
     }
-
-    const systemContent = `${SYSTEM_BASE}\n\n${buildSystemContext(items)}`
 
     const encoder = new TextEncoder()
 
@@ -214,12 +326,23 @@ export async function POST(req: NextRequest) {
           }))
 
           let currentItems: ItemLike[] = [...items]
+          let currentView: AppView = activeView as AppView
+          let currentCategories: CategoryLike[] = categories.map((category: CategoryLike) => ({
+            ...category,
+            key: normalizeCategoryKey(category.key),
+          }))
+          for (const item of currentItems) {
+            currentCategories = ensureCategory(currentCategories, item.category)
+          }
+
           const collectedActions: Array<{ name: string; summary: string }> = []
           let iterationCount = 0
           const MAX_ITERATIONS = 6
 
           while (iterationCount < MAX_ITERATIONS) {
             iterationCount++
+
+            const systemContent = `${SYSTEM_BASE}\n\n${buildSystemContext(currentItems, currentCategories, currentView)}`
 
             const response = await client.messages.create({
               model: 'claude-opus-4-6',
@@ -274,10 +397,11 @@ export async function POST(req: NextRequest) {
 
                 // Execute tool
                 if (toolUse.name === 'create_item') {
+                  const category = normalizeCategoryKey((input.category as string) || 'idea')
                   const now = new Date().toISOString()
                   const newItem: ItemLike = {
                     id: generateId(),
-                    category: input.category as string,
+                    category,
                     title: input.title as string,
                     content: input.content as string,
                     tags: input.tags as string[] | undefined,
@@ -288,10 +412,25 @@ export async function POST(req: NextRequest) {
                     createdAt: now,
                     updatedAt: now,
                   }
+                  currentCategories = ensureCategory(currentCategories, category)
                   currentItems = [newItem, ...currentItems]
+                  send({
+                    type: 'mutation',
+                    action: 'create_category',
+                    category: currentCategories.find((c) => c.key === category),
+                  })
                   send({ type: 'mutation', action: 'create', item: newItem })
                   collectedActions.push({ name: toolUse.name, summary })
                   result = { success: true, id: newItem.id, item: newItem }
+                } else if (toolUse.name === 'create_category') {
+                  const key = normalizeCategoryKey((input.key as string) || '')
+                  const label = (input.label as string) || prettifyCategoryLabel(key)
+                  const emoji = input.emoji as string | undefined
+                  currentCategories = ensureCategory(currentCategories, key, label, emoji)
+                  const created = currentCategories.find((c) => c.key === key)
+                  send({ type: 'mutation', action: 'create_category', category: created })
+                  collectedActions.push({ name: toolUse.name, summary })
+                  result = { success: true, category: created }
                 } else if (toolUse.name === 'update_item') {
                   const id = input.id as string
                   const existing = currentItems.find((i) => i.id === id)
@@ -321,8 +460,14 @@ export async function POST(req: NextRequest) {
                   const category = input.category as string | undefined
                   const filtered = !category || category === 'all'
                     ? currentItems
-                    : currentItems.filter((i) => i.category === category)
+                    : currentItems.filter((i) => i.category === normalizeCategoryKey(category))
                   result = { items: filtered }
+                } else if (toolUse.name === 'navigate_app') {
+                  const view = input.view as AppView
+                  currentView = view
+                  send({ type: 'mutation', action: 'navigate', view })
+                  collectedActions.push({ name: toolUse.name, summary })
+                  result = { success: true, view }
                 } else {
                   result = { error: `Herramienta desconocida: ${toolUse.name}` }
                 }

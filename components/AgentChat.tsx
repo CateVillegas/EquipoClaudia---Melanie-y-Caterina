@@ -15,33 +15,61 @@ import {
   Compass,
   Zap,
   Check,
+  PlusCircle,
+  LayoutDashboard,
 } from 'lucide-react'
 
 const QUICK_PROMPTS = [
   {
-    icon: Sparkles,
-    label: '¿Qué está en mi cabeza?',
-    text: 'Mirá todo lo que tengo guardado y decime qué patrones ves, qué conexiones hay entre mis ideas y qué podría estar pasando por alto.',
+    icon: PlusCircle,
+    label: 'Crear categoría nueva',
+    text: 'Quiero crear una nueva categoría. Proponé un nombre y emoji que tenga sentido.',
   },
   {
     icon: Star,
-    label: 'Desarrollá mi mejor idea',
-    text: 'Analizá mis ideas y elegí la que tenga más potencial. Desarrollala con pros, contras y próximos pasos concretos.',
+    label: 'Guardar una idea',
+    text: 'Tengo una idea que quiero guardar. Te la cuento y vos organizala.',
   },
   {
     icon: Compass,
     label: '¿Qué tengo pendiente?',
-    text: 'Revisá mis proyectos y eventos. ¿Qué debería priorizar ahora? Dame un resumen claro de lo que está en movimiento.',
+    text: 'Revisá todo lo que tengo guardado y decime qué debería priorizar hoy.',
   },
   {
-    icon: MessageCircle,
-    label: 'Ayudame a pensar algo',
-    text: 'Mirá mis notas personales y contame qué observás sobre mis intereses y patrones. ¿Qué temas aparecen seguido?',
+    icon: LayoutDashboard,
+    label: 'Mostrá el dashboard',
+    text: 'Abrí el dashboard para que vea un resumen de todo.',
   },
 ]
 
-export default function AgentChat() {
-  const { messages, addMessage, updateLastMessage, clearMessages, items, addItemDirect, updateItem, deleteItem } = useStore()
+const QUICK_PROMPTS_COMPACT = [
+  {
+    icon: PlusCircle,
+    label: 'Nueva categoría',
+    text: 'Quiero crear una nueva categoría. Proponé un nombre y emoji.',
+  },
+  {
+    icon: Star,
+    label: 'Guardar idea',
+    text: 'Tengo una idea que quiero guardar.',
+  },
+]
+
+export default function AgentChat({ compact = false }: { compact?: boolean }) {
+  const {
+    messages,
+    addMessage,
+    updateLastMessage,
+    clearMessages,
+    items,
+    categories,
+    activeView,
+    addItemDirect,
+    updateItem,
+    deleteItem,
+    upsertCategory,
+    setActiveView,
+  } = useStore()
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -72,7 +100,7 @@ export default function AgentChat() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history, items }),
+        body: JSON.stringify({ messages: history, items, categories, activeView }),
       })
 
       if (!res.ok || !res.body) throw new Error(`Error ${res.status}`)
@@ -99,20 +127,21 @@ export default function AgentChat() {
               fullText += parsed.text
               updateLastMessage(fullText, undefined, collectedActions.length ? collectedActions : undefined)
             } else if (parsed.type === 'tool_call') {
-              // Visual feedback: show tool being called
               collectedActions.push({ name: parsed.name, summary: parsed.summary })
               updateLastMessage(fullText, undefined, [...collectedActions])
             } else if (parsed.type === 'actions') {
-              // Final actions list
               updateLastMessage(fullText, undefined, parsed.actions)
             } else if (parsed.type === 'mutation') {
-              // Apply state change to store
               if (parsed.action === 'create' && parsed.item) {
                 addItemDirect(parsed.item as Item)
               } else if (parsed.action === 'update' && parsed.id && parsed.updates) {
                 updateItem(parsed.id, parsed.updates)
               } else if (parsed.action === 'delete' && parsed.id) {
                 deleteItem(parsed.id)
+              } else if (parsed.action === 'create_category' && parsed.category) {
+                upsertCategory(parsed.category)
+              } else if (parsed.action === 'navigate' && parsed.view) {
+                setActiveView(parsed.view)
               }
             } else if (parsed.type === 'error') {
               fullText += `\n\n⚠️ Error: ${parsed.text}`
@@ -144,68 +173,82 @@ export default function AgentChat() {
     e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
   }
 
+  const prompts = compact ? QUICK_PROMPTS_COMPACT : QUICK_PROMPTS
+
   return (
     <div className="flex h-full flex-col animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-[#e9e3da] px-6 py-5 bg-white">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 ring-1 ring-violet-200">
-            <Brain className="h-5 w-5 text-violet-600" />
+      <div className="flex items-center justify-between border-b border-[#e9e3da] px-5 py-4 bg-white">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-100 ring-1 ring-violet-200">
+            <Brain className="h-4.5 w-4.5 text-violet-600" />
           </div>
           <div>
-            <h1 className="text-base font-semibold text-[#1c1815]">Tu asistente personal</h1>
-            <p className="text-xs text-[#a09890]">
-              Puede leer y modificar tu memoria · {items.length} {items.length === 1 ? 'entrada' : 'entradas'}
+            <h1 className="text-sm font-semibold text-[#1c1815]">Cerebro</h1>
+            <p className="text-[10px] text-[#a09890]">
+              {items.length} {items.length === 1 ? 'entrada' : 'entradas'} · {categories.length} categorías
             </p>
           </div>
         </div>
         {messages.length > 0 && (
           <button
             onClick={clearMessages}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-[#a09890] hover:bg-[#f4f1ec] hover:text-[#6b6259] transition-colors"
+            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-[#a09890] hover:bg-[#f4f1ec] hover:text-[#6b6259] transition-colors"
           >
             <Trash2 className="h-3.5 w-3.5" />
-            Limpiar
+            {!compact && 'Limpiar'}
           </button>
         )}
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-6 bg-[#faf9f6]">
+      <div className="flex-1 overflow-y-auto px-4 py-5 bg-[#faf9f6]">
         {messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-center">
-            <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-100 ring-1 ring-violet-200">
-              <Brain className="h-8 w-8 text-violet-500" />
-            </div>
-            <h2 className="mb-2 text-lg font-semibold text-[#1c1815]">
-              Hola, ¿en qué estás pensando?
-            </h2>
-            <p className="mb-2 max-w-sm text-sm text-[#6b6259] leading-relaxed">
-              Soy tu segunda mente. Puedo recordar, organizar y actuar — si me pedís que guarde algo, lo guardo.
-            </p>
-            <p className="mb-8 max-w-sm text-sm text-[#a09890]">
-              Probá: <em className="text-[#6b6259]">"Recordame darle medicamentos al abuelo todos los días hasta el 30 de junio"</em>
-            </p>
-            <div className="grid grid-cols-2 gap-2.5 w-full max-w-md">
-              {QUICK_PROMPTS.map(({ icon: Icon, label, text }) => (
+          <div className="flex h-full flex-col items-center justify-center text-center px-4">
+            {!compact && (
+              <>
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 ring-1 ring-violet-200">
+                  <Brain className="h-7 w-7 text-violet-500" />
+                </div>
+                <h2 className="mb-1.5 text-lg font-semibold text-[#1c1815]">
+                  Tu cerebro digital
+                </h2>
+                <p className="mb-1.5 max-w-sm text-sm text-[#6b6259] leading-relaxed">
+                  Soy el centro de control de toda la app. Puedo crear categorías, guardar ideas, agendar eventos, organizar proyectos y navegar entre pantallas.
+                </p>
+                <p className="mb-6 max-w-sm text-xs text-[#a09890]">
+                  Pedime lo que necesites — yo me encargo.
+                </p>
+              </>
+            )}
+            {compact && (
+              <p className="mb-4 text-sm text-[#6b6259]">
+                Pedime lo que necesites
+              </p>
+            )}
+            <div className={cn(
+              'grid gap-2 w-full',
+              compact ? 'grid-cols-1 max-w-[280px]' : 'grid-cols-2 max-w-md'
+            )}>
+              {prompts.map(({ icon: Icon, label, text }) => (
                 <button
                   key={label}
                   onClick={() => send(text)}
-                  className="flex items-start gap-2.5 rounded-xl border border-[#e9e3da] bg-white p-3.5 text-left hover:border-violet-200 hover:bg-violet-50 transition-all shadow-sm"
+                  className="flex items-center gap-2.5 rounded-xl border border-[#e9e3da] bg-white p-3 text-left hover:border-violet-200 hover:bg-violet-50 transition-all shadow-sm"
                 >
-                  <Icon className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" />
+                  <Icon className="h-4 w-4 shrink-0 text-violet-500" />
                   <span className="text-xs text-[#6b6259]">{label}</span>
                 </button>
               ))}
             </div>
           </div>
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-4">
             {messages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} />
+              <MessageBubble key={msg.id} message={msg} compact={compact} />
             ))}
             {loading && (
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-2.5">
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-100 ring-1 ring-violet-200">
                   <Brain className="h-3.5 w-3.5 text-violet-500" />
                 </div>
@@ -222,14 +265,14 @@ export default function AgentChat() {
       </div>
 
       {/* Input */}
-      <div className="border-t border-[#e9e3da] p-4 bg-white">
-        <div className="flex items-end gap-3 rounded-xl border border-[#e9e3da] bg-[#faf9f6] px-4 py-3 focus-within:border-violet-300 focus-within:ring-1 focus-within:ring-violet-100 transition-all">
+      <div className="border-t border-[#e9e3da] p-3 bg-white">
+        <div className="flex items-end gap-2.5 rounded-xl border border-[#e9e3da] bg-[#faf9f6] px-3 py-2.5 focus-within:border-violet-300 focus-within:ring-1 focus-within:ring-violet-100 transition-all">
           <textarea
             ref={textareaRef}
             value={input}
             onChange={handleInput}
             onKeyDown={handleKeyDown}
-            placeholder="Contame lo que tenés en mente… (Enter para enviar)"
+            placeholder={compact ? 'Escribí acá…' : 'Decime qué necesitás… (Enter para enviar)'}
             rows={1}
             disabled={loading}
             className="flex-1 resize-none bg-transparent text-sm text-[#1c1815] placeholder-[#bfb9b2] outline-none disabled:opacity-50"
@@ -248,19 +291,16 @@ export default function AgentChat() {
             <Send className="h-4 w-4" />
           </button>
         </div>
-        <p className="mt-2 text-center text-[10px] text-[#d4cfc9]">
-          Tu asistente puede guardar y modificar entradas directamente.
-        </p>
       </div>
     </div>
   )
 }
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({ message, compact = false }: { message: ChatMessage; compact?: boolean }) {
   const isUser = message.role === 'user'
 
   return (
-    <div className={cn('flex items-start gap-3', isUser && 'flex-row-reverse')}>
+    <div className={cn('flex items-start gap-2.5', isUser && 'flex-row-reverse')}>
       <div
         className={cn(
           'flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
@@ -274,18 +314,22 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         )}
       </div>
 
-      <div className={cn('flex flex-col gap-1.5 max-w-[78%]', isUser && 'items-end')}>
+      <div className={cn(
+        'flex flex-col gap-1.5',
+        isUser ? 'items-end' : 'items-start',
+        compact ? 'max-w-[85%]' : 'max-w-[78%]'
+      )}>
         {/* Tool actions badge */}
         {!isUser && message.actions && message.actions.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {message.actions.map((action, i) => (
               <span
                 key={i}
-                className="inline-flex items-center gap-1 rounded-full bg-violet-50 border border-violet-200 px-2.5 py-0.5 text-[11px] font-medium text-violet-700"
+                className="inline-flex items-center gap-1 rounded-full bg-violet-50 border border-violet-200 px-2 py-0.5 text-[10px] font-medium text-violet-700"
               >
-                <Zap className="h-3 w-3" />
+                <Zap className="h-2.5 w-2.5" />
                 {action.summary}
-                <Check className="h-3 w-3 text-violet-500" />
+                <Check className="h-2.5 w-2.5 text-violet-500" />
               </span>
             ))}
           </div>
@@ -295,7 +339,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         {(message.content || isUser) && (
           <div
             className={cn(
-              'rounded-2xl px-4 py-3 text-sm leading-relaxed',
+              'rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed',
               isUser
                 ? 'rounded-tr-sm bg-[#6d5fd3] text-white shadow-sm'
                 : 'rounded-tl-sm bg-white text-[#3d3630] border border-[#e9e3da] shadow-sm'
@@ -313,7 +357,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
                 Escribiendo…
               </span>
             )}
-            <p className={cn('mt-1.5 text-[10px]', isUser ? 'text-white/50' : 'text-[#bfb9b2]')}>
+            <p className={cn('mt-1 text-[10px]', isUser ? 'text-white/50' : 'text-[#bfb9b2]')}>
               {formatTime(message.timestamp)}
             </p>
           </div>

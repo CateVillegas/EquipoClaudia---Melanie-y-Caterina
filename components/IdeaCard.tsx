@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Item, CATEGORY_CONFIG } from '@/lib/types'
+import { Item, getCategoryConfig } from '@/lib/types'
 import { useStore } from '@/lib/store'
 import { cn, formatDate, truncate } from '@/lib/utils'
 import { Pin, Trash2, Tag, Calendar, RefreshCw, User } from 'lucide-react'
@@ -13,9 +13,9 @@ const RECURRENCE_LABEL: Record<string, string> = {
 }
 
 export default function IdeaCard({ item }: { item: Item }) {
-  const { deleteItem, togglePin } = useStore()
+  const { deleteItem, togglePin, categories } = useStore()
   const [showConfirm, setShowConfirm] = useState(false)
-  const cfg = CATEGORY_CONFIG[item.category]
+  const cfg = getCategoryConfig(item.category, categories)
 
   return (
     <div className={cn(
