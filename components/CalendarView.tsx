@@ -23,7 +23,8 @@ function buildEventsByDate(items: Item[]): Record<string, Item[]> {
   const maxDate = addMonths(new Date(), 6) // expandir hasta 6 meses adelante
 
   for (const item of items) {
-    if (item.category !== 'evento' || !item.date) continue
+    if (!item.date) continue
+    if (item.category !== 'evento' && item.category !== 'persona') continue
 
     if (!item.recurrence) {
       if (!result[item.date]) result[item.date] = []
