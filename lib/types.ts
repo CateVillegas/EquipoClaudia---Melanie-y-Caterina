@@ -1,5 +1,5 @@
 export type Category = string
-export type View = 'dashboard' | 'ideas' | 'calendario' | 'agente'
+export type View = 'dashboard' | 'ideas' | 'calendario' | 'agente' | 'pro'
 
 export interface Recurrence {
   frequency: 'daily' | 'weekly' | 'monthly'
